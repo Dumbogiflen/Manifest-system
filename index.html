@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <title>Pilatus Manifest</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #eef2f5;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 { color: #003366; }
+    #club {
+      font-weight: bold;
+      color: #004488;
+      font-size: 1.1em;
+    }
+    #msgList {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+    }
+    .msg {
+      border-bottom: 1px solid #ddd;
+      padding: 5px 0;
+    }
+    .msg.manifest { color: #003399; }
+    .msg.pilot { color: #990000; }
+    textarea {
+      width: 100%;
+      height: 80px;
+      margin-top: 10px;
+      font-size: 1em;
+    }
+    button {
+      background-color: #004488;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover { background-color: #0066aa; }
+  </style>
+</head>
+<body>
+  <h1>Pilatus Manifest</h1>
+  <p>Klub: <span id="club">Indlæser...</span></p>
+
+  <h3>Beskeder</h3>
+  <div id="msgList"></div>
+
+  <h3>Send ny besked</h3>
+  <textarea id="msgText" placeholder="Skriv besked til piloten..."></textarea><br>
+  <button onclick="sendMsg()">Send</button>
+
+  <script>
+    async function loadState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        document.getElementById('club').textContent = data.club || 'Ukendt';
+        const list = document.getElementById('msgList');
+        list.innerHTML = '';
+        for (const m of data.messages || []) {
+          const div = document.createElement('div');
+          div.className = 'msg ' + (m.sender || '');
+          div.textContent = `${m.sender}: ${m.text}`;
+          list.appendChild(div);
+        }
+      } catch (err) {
+        console.error('Fejl ved hentning af state:', err);
+      }
+    }
+
+    async function sendMsg() {
+      const text = document.getElementById('msgText').value.trim();
+      if (!text) return;
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ text })
+      });
+      document.getElementById('msgText').value = '';
+      loadState();
+    }
+
+    setInterval(loadState, 3000);
+    loadState();
+  </script>
+</body>
+</html>
