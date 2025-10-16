@@ -1,266 +1,315 @@
 <!DOCTYPE html>
 <html lang="da">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
   <title>Pilatus Manifest</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      background-color: #eef2f7;
-      margin: 0;
-      padding: 0;
-      color: #1e1e1e;
+    :root{
+      --bg:#f5f7fb; --ink:#0a1a2b; --muted:#667085; --brand:#0a4a86;
+      --card:#fff; --border:#e5edf6; --accent:#0a84ff; --ok:#2ea44f; --warn:#f59e0b; --bad:#e74c3c;
     }
-    header {
-      background-color: #004aad;
-      color: white;
-      padding: 15px;
-      text-align: center;
-      font-size: 22px;
-      font-weight: bold;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    main {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      padding: 20px;
-    }
-    .panel {
-      background: white;
-      border-radius: 15px;
-      padding: 20px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    h2 {
-      color: #004aad;
-      border-bottom: 2px solid #004aad33;
-      padding-bottom: 6px;
-    }
-    textarea, input, select {
-      width: 100%;
-      border: 1px solid #ccd6e0;
-      border-radius: 8px;
-      padding: 8px;
-      font-size: 14px;
-      margin-top: 5px;
-      resize: none;
-    }
-    button {
-      background-color: #004aad;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 16px;
-      cursor: pointer;
-      margin-top: 10px;
-      font-size: 14px;
-    }
-    button:hover {
-      background-color: #0060ff;
-    }
-    #messages {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      height: 350px;
-      overflow-y: auto;
-      background: #f1f5fb;
-      border-radius: 10px;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-    .msg {
-      display: inline-block;
-      max-width: 70%;
-      padding: 8px 12px;
-      border-radius: 18px;
-      word-wrap: break-word;
-      font-size: 14px;
-    }
-    .msg.manifest {
-      background: #007aff;
-      color: white;
-      align-self: flex-end;
-      border-bottom-right-radius: 5px;
-    }
-    .msg.pilot {
-      background: #e5e5ea;
-      color: black;
-      align-self: flex-start;
-      border-bottom-left-radius: 5px;
-    }
-    .status {
-      font-size: 10px;
-      color: gray;
-      text-align: right;
-      margin-top: 2px;
-    }
-    .quick-btn {
-      background-color: #dce6f9;
-      color: #004aad;
-      border: 1px solid #004aad33;
-      border-radius: 8px;
-      padding: 6px 10px;
-      margin: 3px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .quick-btn:hover {
-      background-color: #004aad;
-      color: white;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 10px;
-    }
-    th, td {
-      padding: 8px;
-      text-align: center;
-    }
-    tr:nth-child(even) {
-      background-color: #f9f9f9;
-    }
-    footer {
-      text-align: center;
-      font-size: 12px;
-      color: #666;
-      padding: 10px;
-    }
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-    }
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,Segoe UI,Arial,sans-serif;}
+    header{background:#003366;color:#fff;padding:12px 16px;font-weight:600}
+    main{padding:16px;display:grid;gap:16px;grid-template-columns:1.3fr 1fr;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .card h2{margin:0;padding:12px 14px;background:#f0f6ff;color:var(--brand);font-size:16px}
+    .body{padding:12px 14px}
+
+    /* Chat */
+    .chat{max-height:420px;overflow:auto;padding-right:6px}
+    .bubble{max-width:68%;padding:8px 10px;margin:8px 0;border-radius:10px}
+    .from-pilot{background:#eef2f7;color:#111;border-top-left-radius:4px}
+    .from-me{background:#cce5ff;color:#001e3c;margin-left:auto;border-top-right-radius:4px}
+    .row{display:flex;gap:8px;margin-top:10px}
+    .row input, .row select{flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:8px}
+    .row button{padding:8px 12px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
+    .meta{font-size:11px;color:#6b7280;margin-top:3px;text-align:right}
+    .quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .quick button{background:#eef6ff;border:1px solid #bfdcff;border-radius:20px;padding:6px 10px;cursor:pointer}
+
+    /* Lift */
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:8px;text-align:center}
+    thead th{background:#f6faff;color:var(--brand)}
+    .two{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+    .send{background:var(--ok)!important}
+    .list{max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+    .s-active{background:#e8fff3;color:#14532d;border:1px solid #d1fae5}
+    .s-completed{background:#eef2ff;color:#1e3a8a;border:1px solid #dbeafe}
+    .help{color:#c0392b;font-size:13px;margin-top:6px}
   </style>
 </head>
 <body>
-  <header>Pilatus Manifest</header>
+<header>Pilatus Manifest</header>
+<main>
 
-  <main>
-    <div class="panel">
-      <h2>Kommunikation</h2>
-      <div id="quickButtons"></div>
-      <div id="messages"></div>
-      <textarea id="msgText" rows="2" placeholder="Skriv besked..."></textarea>
-      <button onclick="sendMsg()">Send</button>
-      <button onclick="addQuickMsg()">+ Tilføj hurtigbesked</button>
+  <!-- Beskeder -->
+  <section class="card">
+    <h2>Beskeder til/fra pilot</h2>
+    <div class="body">
+      <div id="chat" class="chat"></div>
+      <div class="row">
+        <input id="msgInput" placeholder="Skriv en besked…" />
+        <button id="sendBtn">Send</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+        <strong>Hurtigbeskeder</strong>
+        <button id="addQuickBtn" style="background:#eee;color:#111;border:1px solid #ddd">+ tilføj</button>
+      </div>
+      <div id="quick" class="quick"></div>
     </div>
+  </section>
 
-    <div class="panel">
-      <h2>Liftplanlægning</h2>
-      <table>
-        <tr><th>Højde (m)</th><th>Springere</th><th>Overflyvninger</th></tr>
-        <tr><td>1000</td><td><input id="jump1000" type="number" min="0"></td><td><input id="fly1000" type="number" min="0"></td></tr>
-        <tr><td>1500</td><td><input id="jump1500" type="number" min="0"></td><td><input id="fly1500" type="number" min="0"></td></tr>
-        <tr><td>2250</td><td><input id="jump2250" type="number" min="0"></td><td><input id="fly2250" type="number" min="0"></td></tr>
-        <tr><td>4000</td><td><input id="jump4000" type="number" min="0"></td><td><input id="fly4000" type="number" min="0"></td></tr>
+  <!-- Lift -->
+  <section class="card">
+    <h2>Opret lift</h2>
+    <div class="body">
+      <div class="two">
+        <div>
+          <label>Lift nr.</label>
+          <input id="liftId" type="number" min="1" value="1" />
+        </div>
+        <div>
+          <label>Navn</label>
+          <input id="liftName" placeholder="(fx Lift 1 – valgfrit)" />
+        </div>
+      </div>
+
+      <table style="margin-top:10px">
+        <thead>
+          <tr><th>Højde (m)</th><th>Springere</th><th>Overflyvninger</th></tr>
+        </thead>
+        <tbody id="liftRows"></tbody>
       </table>
-      <div id="totals">Total springere: 0 • Total skærme: 0</div>
-      <button onclick="sendLift()">Send lift til pilot</button>
+
+      <div class="two" style="margin-top:10px">
+        <div>
+          <label>Total springere</label>
+          <input id="totalJumpers" type="number" min="0" placeholder="(tom = summer rækker)" />
+        </div>
+        <div>
+          <label>Total skærme</label>
+          <input id="totalCanopies" type="number" min="0" placeholder="(tom = samme som springere)" />
+        </div>
+      </div>
+
+      <div class="help" id="liftHelp"></div>
+
+      <div class="row" style="margin-top:10px">
+        <button id="sendLift" class="send">✈️ Send lift til pilot</button>
+      </div>
+
+      <h3 style="margin:16px 0 8px">Dagens lifts</h3>
+      <div id="liftList" class="list"></div>
     </div>
-  </main>
+  </section>
 
-  <footer>Pilatus System – Manifest Kontrol</footer>
+</main>
 
-  <script>
-    function loadQuickButtons() {
-      const quicks = JSON.parse(localStorage.getItem("quickMessages") || "[]");
-      const div = document.getElementById("quickButtons");
-      div.innerHTML = quicks.map(q =>
-        `<button class="quick-btn" onclick="quickSend('${q}')">${q}</button>`
-      ).join("");
-    }
-    function addQuickMsg() {
-      const text = prompt("Indtast hurtigbesked:");
-      if (text) {
-        const quicks = JSON.parse(localStorage.getItem("quickMessages") || "[]");
-        quicks.push(text);
-        localStorage.setItem("quickMessages", JSON.stringify(quicks));
-        loadQuickButtons();
-      }
-    }
-    async function quickSend(text) {
-      const fd = new FormData();
-      fd.append("text", text);
-      await fetch("/api/messages", { method: "POST", body: fd });
-      refresh();
-    }
+<script>
+  // ---------- UI refs ----------
+  const chatDiv  = document.getElementById('chat');
+  const msgInput = document.getElementById('msgInput');
+  const sendBtn  = document.getElementById('sendBtn');
+  const quickDiv = document.getElementById('quick');
+  const addQuickBtn = document.getElementById('addQuickBtn');
 
-    async function refresh() {
-      try {
-        const res = await fetch("/api/state");
-        const data = await res.json();
-        const msgDiv = document.getElementById("messages");
-        msgDiv.innerHTML = data.messages.map(m => `
-          <div class="msg ${m.sender}">
-            ${m.text}
-            <div class="status">${m.status || ""}</div>
-          </div>
-        `).join("");
-        msgDiv.scrollTop = msgDiv.scrollHeight;
-      } catch (err) {
-        console.warn("Kunne ikke hente data:", err);
-      }
-      updateTotals();
-    }
+  const liftRowsTbody = document.getElementById('liftRows');
+  const liftHelp  = document.getElementById('liftHelp');
+  const liftIdInp = document.getElementById('liftId');
+  const liftName  = document.getElementById('liftName');
+  const totalJumpers = document.getElementById('totalJumpers');
+  const totalCanopies= document.getElementById('totalCanopies');
+  const sendLiftBtn  = document.getElementById('sendLift');
+  const liftListBox  = document.getElementById('liftList');
 
-    function updateTotals() {
-      const heights = [1000,1500,2250,4000];
-      let totalJump = 0, totalFly = 0;
-      for (const h of heights) {
-        const jump = parseInt(document.getElementById(`jump${h}`).value) || 0;
-        const flyInput = document.getElementById(`fly${h}`);
-        let fly = parseInt(flyInput.value);
-        if (jump > 0 && (isNaN(fly) || fly === 0)) {
-          fly = 1;
-          flyInput.value = 1;
-        }
-        totalJump += jump;
-        totalFly += fly || 0;
-      }
-      document.getElementById("totals").textContent =
-        `Total springere: ${totalJump} • Total skærme: ${totalJump + totalFly}`;
-    }
+  const LS_LAST_LIFT_ID = 'manifest_last_lift_id';
+  const FIXED_ALTS = [1000,1500,2250,4000];
 
-    async function sendMsg() {
-      const text = document.getElementById("msgText").value.trim();
-      if (!text) return;
-      const fd = new FormData();
-      fd.append("text", text);
-      await fetch("/api/messages", { method:"POST", body: fd });
-      document.getElementById("msgText").value = "";
-      refresh();
-    }
+  // Byg rækker for de 4 højder
+  function buildRows(){
+    liftRowsTbody.innerHTML = '';
+    FIXED_ALTS.forEach(alt=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${alt}</td>
+        <td><input type="number" min="0" data-alt="${alt}" data-field="jumpers" placeholder="0" style="width:90%"></td>
+        <td><input type="number" min="0" data-alt="${alt}" data-field="overflights" placeholder="(auto 1 hvis udfyldt)" style="width:90%"></td>
+      `;
+      liftRowsTbody.appendChild(tr);
+    });
+  }
+  buildRows();
 
-    async function sendLift() {
-      const heights = [1000,1500,2250,4000];
-      const levels = heights.map(h => ({
-        alt: h,
-        jumpers: parseInt(document.getElementById(`jump${h}`).value) || 0,
-        flybys: parseInt(document.getElementById(`fly${h}`).value) || 0
-      }));
-      const totalJump = levels.reduce((a,b)=>a+b.jumpers,0);
-      const totalFly = levels.reduce((a,b)=>a+b.flybys,0);
-      const lift = {
-        id: Date.now(),
-        status: "planned",
-        levels,
-        total_jumpers: totalJump,
-        total_screens: totalJump + totalFly
+  // ---------- State fetch/render ----------
+  async function load(){
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    renderChat(data.messages);
+    renderQuick(data.quick);
+    renderLiftList(data.lifts);
+    proposeNextLiftId(data.lifts);
+  }
+
+  function renderChat(list){
+    chatDiv.innerHTML = '';
+    list.forEach(m=>{
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble ' + (m.sender==='manifest'?'from-me':'from-pilot');
+      const statusTxt = m.status==='read'?'👁️ læst':(m.status==='delivered'?'✅ leveret':'✉️ sendt');
+      bubble.innerHTML = `<div>${escapeHtml(m.text)}</div><div class="meta">${statusTxt} • ${m.ts||''}</div>`;
+      chatDiv.appendChild(bubble);
+    });
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  }
+
+  function renderQuick(list){
+    quickDiv.innerHTML = '';
+    list.forEach(q=>{
+      const b = document.createElement('button');
+      b.textContent = q;
+      b.onclick = async ()=>{
+        await sendMessage(q);
       };
-      const fd = new FormData();
-      fd.append("data", JSON.stringify(lift));
-      await fetch("/api/lift/create", { method:"POST", body: fd });
-      alert("Lift sendt til pilot ✅");
-      refresh();
+      quickDiv.appendChild(b);
+    });
+  }
+
+  function renderLiftList(list){
+    liftListBox.innerHTML = '';
+    if (!list || !list.length){
+      liftListBox.textContent = 'Ingen lifts oprettet i dag endnu.';
+      return;
+    }
+    list.forEach(l=>{
+      const div = document.createElement('div');
+      const pill = `<span class="pill ${l.status==='completed'?'s-completed':'s-active'}">${l.status}</span>`;
+      div.style.padding = '6px 4px';
+      div.style.borderBottom = '1px solid #eee';
+      div.innerHTML = `<strong>#${l.id}</strong> ${escapeHtml(l.name||('Lift '+l.id))} ${pill}`;
+      liftListBox.appendChild(div);
+    });
+  }
+
+  function proposeNextLiftId(list){
+    let stored = parseInt(localStorage.getItem(LS_LAST_LIFT_ID)||'0',10);
+    let maxId = stored;
+    for (const l of (list||[])){
+      if (typeof l.id==='number' && l.id > maxId) maxId = l.id;
+    }
+    // hvis input er tomt eller 1, foreslå max+1
+    const current = parseInt(liftIdInp.value||'0',10);
+    if (!current || current <= maxId){
+      liftIdInp.value = (maxId+1)||1;
+    }
+  }
+
+  // ---------- Actions ----------
+  async function sendMessage(text){
+    const fd = new FormData();
+    fd.append('text', text);
+    await fetch('/api/messages', {method:'POST', body:fd});
+    msgInput.value='';
+    await load();
+  }
+
+  sendBtn.onclick = async ()=>{
+    const t = msgInput.value.trim();
+    if (!t) return;
+    await sendMessage(t);
+  };
+
+  addQuickBtn.onclick = async ()=>{
+    const t = prompt('Ny hurtigbesked:');
+    if (!t) return;
+    const fd = new FormData(); fd.append('text', t);
+    await fetch('/api/quick/add', {method:'POST', body:fd});
+    await load();
+  };
+
+  // Markér pilot-beskeder som læst, når vinduet får fokus
+  window.addEventListener('focus', async ()=>{
+    await fetch('/api/messages/read', {method:'POST'});
+    await load();
+  });
+
+  sendLiftBtn.onclick = async ()=>{
+    const id = parseInt(liftIdInp.value||'0',10);
+    if (!id){ liftHelp.textContent='Angiv et gyldigt lift-nummer.'; return; }
+    localStorage.setItem(LS_LAST_LIFT_ID, String(id));
+
+    const rows = [];
+    // saml rækker, skip hvis jumpers tom/0
+    FIXED_ALTS.forEach(alt=>{
+      const j = valNum(`[data-alt="${alt}"][data-field="jumpers"]`);
+      const o = valNum(`[data-alt="${alt}"][data-field="overflights"]`, null);
+      if (j>0){
+        rows.push({
+          alt: alt,
+          jumpers: j,
+          overflights: (o===null ? 1 : o)  // auto 1 hvis udfyldt springere men ikke overflights
+        });
+      }
+    });
+
+    if (rows.length===0){
+      liftHelp.textContent = 'Udfyld mindst én række med springere.';
+      return;
     }
 
-    loadQuickButtons();
-    refresh();
-    setInterval(refresh, 3000);
-  </script>
+    // totals
+    const tJumpers  = valNum('#totalJumpers', null);
+    const tCanopies = valNum('#totalCanopies', null);
+
+    let sumJ = rows.reduce((a,r)=>a+(r.jumpers||0),0);
+    const totals = {
+      jumpers: (tJumpers===null ? sumJ : tJumpers),
+      canopies: (tCanopies===null ? (tJumpers===null?sumJ:tJumpers) : tCanopies)
+    };
+
+    const name = (liftName.value||'').trim() || `Lift ${id}`;
+    const obj = {
+      id: id,
+      name: name,
+      status: "active",
+      rows: rows,
+      totals: totals
+    };
+
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify(obj));
+
+    const res = await fetch('/api/lift/send',{method:'POST', body:fd});
+    if (!res.ok){
+      const err = await res.json().catch(()=>({error:'ukendt fejl'}));
+      liftHelp.textContent = 'Fejl: ' + (err.error||'ukendt');
+      return;
+    }
+    liftHelp.textContent = 'Lift sendt ✔︎';
+    // foreslå næste nummer
+    liftIdInp.value = id+1;
+    localStorage.setItem(LS_LAST_LIFT_ID, String(id+1));
+    await load();
+  };
+
+  function valNum(sel, fallback=0){
+    const el = document.querySelector(sel);
+    if (!el) return fallback;
+    const v = el.value.trim();
+    if (v==='') return fallback;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  }
+
+  // init
+  load();
+  setInterval(load, 3000);
+</script>
 </body>
 </html>
