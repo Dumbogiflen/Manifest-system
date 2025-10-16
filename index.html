@@ -14,7 +14,7 @@
     header {
       background-color: #004aad;
       color: white;
-      padding: 15px 25px;
+      padding: 15px;
       text-align: center;
       font-size: 22px;
       font-weight: bold;
@@ -31,20 +31,23 @@
       border-radius: 15px;
       padding: 20px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     h2 {
       color: #004aad;
       border-bottom: 2px solid #004aad33;
       padding-bottom: 6px;
     }
-    textarea, input {
+    textarea, input, select {
       width: 100%;
       border: 1px solid #ccd6e0;
       border-radius: 8px;
       padding: 8px;
       font-size: 14px;
-      resize: none;
       margin-top: 5px;
+      resize: none;
     }
     button {
       background-color: #004aad;
@@ -59,24 +62,64 @@
     button:hover {
       background-color: #0060ff;
     }
-    .message, .lift {
-      border-bottom: 1px solid #e4e4e4;
-      padding: 6px 0;
+
+    /* --- iPhone-style beskeder --- */
+    #messages {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      height: 400px;
+      overflow-y: auto;
+      background: #f1f5fb;
+      border-radius: 10px;
+      padding: 10px;
     }
-    .sender {
+    .msg {
+      display: inline-block;
+      max-width: 70%;
+      padding: 8px 12px;
+      border-radius: 18px;
+      word-wrap: break-word;
+      font-size: 14px;
+      position: relative;
+    }
+    .msg.manifest {
+      background: #007aff;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 5px;
+    }
+    .msg.pilot {
+      background: #e5e5ea;
+      color: black;
+      align-self: flex-start;
+      border-bottom-left-radius: 5px;
+    }
+    .status {
+      font-size: 10px;
+      color: gray;
+      text-align: right;
+      margin-top: 2px;
+    }
+
+    /* --- Liftliste --- */
+    .lift-item {
+      border-bottom: 1px solid #eaeaea;
+      padding: 8px 0;
+    }
+    .lift-item:last-child { border-bottom: none; }
+    .lift-header {
       font-weight: bold;
       color: #004aad;
     }
-    .status {
-      font-size: 12px;
-      color: gray;
-    }
+
     footer {
       text-align: center;
       font-size: 12px;
       color: #666;
       padding: 10px;
     }
+
     @media (max-width: 900px) {
       main { grid-template-columns: 1fr; }
     }
@@ -87,21 +130,33 @@
 
   <main>
     <div class="panel">
-      <h2>Send besked til pilot</h2>
-      <textarea id="msgText" rows="3" placeholder="Skriv besked..."></textarea>
-      <button onclick="sendMsg()">Send</button>
+      <h2>Kommunikation</h2>
       <div id="messages"></div>
+      <textarea id="msgText" rows="2" placeholder="Skriv besked til pilot..."></textarea>
+      <button onclick="sendMsg()">Send</button>
     </div>
 
     <div class="panel">
-      <h2>Opret lift</h2>
-      <textarea id="liftData" rows="3" placeholder='{"id":1,"status":"planned","jumpers":["A","B","C"]}'></textarea>
-      <button onclick="sendLift()">Opret lift</button>
+      <h2>Liftplanlægning</h2>
+      <label>Lift ID</label>
+      <input id="liftId" type="number" placeholder="Fx 12">
+      <label>Status</label>
+      <select id="liftStatus">
+        <option value="planned">Planlagt</option>
+        <option value="boarding">Boarding</option>
+        <option value="airborne">I luften</option>
+        <option value="completed">Afsluttet</option>
+      </select>
+      <label>Springere (adskilt med komma)</label>
+      <input id="liftJumpers" type="text" placeholder="Fx Peter, Lise, Mads">
+      <button onclick="createLift()">Opret lift</button>
+
+      <h3>Aktive lifts</h3>
       <div id="lifts"></div>
     </div>
   </main>
 
-  <footer>Manifest-interface • Pilatus System</footer>
+  <footer>Pilatus System – Manifest Kontrol</footer>
 
   <script>
     async function refresh() {
@@ -109,18 +164,25 @@
         const res = await fetch("/api/state");
         const data = await res.json();
 
+        // --- Beskeder ---
         const msgDiv = document.getElementById("messages");
-        msgDiv.innerHTML = "<h3>Modtagne og sendte beskeder</h3>" + data.messages.map(m =>
-          `<div class="message"><span class="sender">${m.sender}:</span> ${m.text}</div>`
-        ).join("");
+        msgDiv.innerHTML = data.messages.map(m => `
+          <div class="msg ${m.sender}">
+            ${m.text}
+            <div class="status">${m.status || ""}</div>
+          </div>
+        `).join("");
 
+        msgDiv.scrollTop = msgDiv.scrollHeight;
+
+        // --- Lifts ---
         const liftDiv = document.getElementById("lifts");
-        liftDiv.innerHTML = "<h3>Liftliste</h3>" + data.lifts.map(l =>
-          `<div class="lift">
-            <b>Lift ${l.id || '?'}</b> – Status: ${l.status || 'ukendt'}<br>
-            <span class="status">Springere: ${(l.jumpers || []).join(', ')}</span>
-          </div>`
-        ).join("");
+        liftDiv.innerHTML = data.lifts.map(l => `
+          <div class="lift-item">
+            <div class="lift-header">Lift ${l.id} – ${l.status}</div>
+            <div>Springere: ${(l.jumpers || []).join(", ")}</div>
+          </div>
+        `).join("");
       } catch (err) {
         console.warn("Kunne ikke hente data:", err);
       }
@@ -136,13 +198,20 @@
       refresh();
     }
 
-    async function sendLift() {
-      const text = document.getElementById("liftData").value.trim();
-      if (!text) return;
+    async function createLift() {
+      const id = document.getElementById("liftId").value;
+      const status = document.getElementById("liftStatus").value;
+      const jumpers = document.getElementById("liftJumpers").value
+                        .split(",").map(j => j.trim()).filter(j => j);
+      if (!id) return alert("Indtast et lift ID!");
+
+      const lift = { id: Number(id), status, jumpers };
       const fd = new FormData();
-      fd.append("data", text);
+      fd.append("data", JSON.stringify(lift));
       await fetch("/api/lift/create", { method:"POST", body: fd });
-      document.getElementById("liftData").value = "";
+
+      document.getElementById("liftId").value = "";
+      document.getElementById("liftJumpers").value = "";
       refresh();
     }
 
