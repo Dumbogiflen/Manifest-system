@@ -62,17 +62,16 @@
     button:hover {
       background-color: #0060ff;
     }
-
-    /* --- iPhone-style beskeder --- */
     #messages {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      height: 400px;
+      height: 350px;
       overflow-y: auto;
       background: #f1f5fb;
       border-radius: 10px;
       padding: 10px;
+      margin-bottom: 10px;
     }
     .msg {
       display: inline-block;
@@ -81,7 +80,6 @@
       border-radius: 18px;
       word-wrap: break-word;
       font-size: 14px;
-      position: relative;
     }
     .msg.manifest {
       background: #007aff;
@@ -101,25 +99,38 @@
       text-align: right;
       margin-top: 2px;
     }
-
-    /* --- Liftliste --- */
-    .lift-item {
-      border-bottom: 1px solid #eaeaea;
-      padding: 8px 0;
-    }
-    .lift-item:last-child { border-bottom: none; }
-    .lift-header {
-      font-weight: bold;
+    .quick-btn {
+      background-color: #dce6f9;
       color: #004aad;
+      border: 1px solid #004aad33;
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin: 3px;
+      cursor: pointer;
+      font-size: 13px;
     }
-
+    .quick-btn:hover {
+      background-color: #004aad;
+      color: white;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
     footer {
       text-align: center;
       font-size: 12px;
       color: #666;
       padding: 10px;
     }
-
     @media (max-width: 900px) {
       main { grid-template-columns: 1fr; }
     }
@@ -131,40 +142,57 @@
   <main>
     <div class="panel">
       <h2>Kommunikation</h2>
+      <div id="quickButtons"></div>
       <div id="messages"></div>
-      <textarea id="msgText" rows="2" placeholder="Skriv besked til pilot..."></textarea>
+      <textarea id="msgText" rows="2" placeholder="Skriv besked..."></textarea>
       <button onclick="sendMsg()">Send</button>
+      <button onclick="addQuickMsg()">+ Tilføj hurtigbesked</button>
     </div>
 
     <div class="panel">
       <h2>Liftplanlægning</h2>
-      <label>Lift ID</label>
-      <input id="liftId" type="number" placeholder="Fx 12">
-      <label>Status</label>
-      <select id="liftStatus">
-        <option value="planned">Planlagt</option>
-        <option value="boarding">Boarding</option>
-        <option value="airborne">I luften</option>
-        <option value="completed">Afsluttet</option>
-      </select>
-      <label>Springere (adskilt med komma)</label>
-      <input id="liftJumpers" type="text" placeholder="Fx Peter, Lise, Mads">
-      <button onclick="createLift()">Opret lift</button>
-
-      <h3>Aktive lifts</h3>
-      <div id="lifts"></div>
+      <table>
+        <tr><th>Højde (m)</th><th>Springere</th><th>Overflyvninger</th></tr>
+        <tr><td>1000</td><td><input id="jump1000" type="number" min="0"></td><td><input id="fly1000" type="number" min="0"></td></tr>
+        <tr><td>1500</td><td><input id="jump1500" type="number" min="0"></td><td><input id="fly1500" type="number" min="0"></td></tr>
+        <tr><td>2250</td><td><input id="jump2250" type="number" min="0"></td><td><input id="fly2250" type="number" min="0"></td></tr>
+        <tr><td>4000</td><td><input id="jump4000" type="number" min="0"></td><td><input id="fly4000" type="number" min="0"></td></tr>
+      </table>
+      <div id="totals">Total springere: 0 • Total skærme: 0</div>
+      <button onclick="sendLift()">Send lift til pilot</button>
     </div>
   </main>
 
   <footer>Pilatus System – Manifest Kontrol</footer>
 
   <script>
+    function loadQuickButtons() {
+      const quicks = JSON.parse(localStorage.getItem("quickMessages") || "[]");
+      const div = document.getElementById("quickButtons");
+      div.innerHTML = quicks.map(q =>
+        `<button class="quick-btn" onclick="quickSend('${q}')">${q}</button>`
+      ).join("");
+    }
+    function addQuickMsg() {
+      const text = prompt("Indtast hurtigbesked:");
+      if (text) {
+        const quicks = JSON.parse(localStorage.getItem("quickMessages") || "[]");
+        quicks.push(text);
+        localStorage.setItem("quickMessages", JSON.stringify(quicks));
+        loadQuickButtons();
+      }
+    }
+    async function quickSend(text) {
+      const fd = new FormData();
+      fd.append("text", text);
+      await fetch("/api/messages", { method: "POST", body: fd });
+      refresh();
+    }
+
     async function refresh() {
       try {
         const res = await fetch("/api/state");
         const data = await res.json();
-
-        // --- Beskeder ---
         const msgDiv = document.getElementById("messages");
         msgDiv.innerHTML = data.messages.map(m => `
           <div class="msg ${m.sender}">
@@ -172,20 +200,29 @@
             <div class="status">${m.status || ""}</div>
           </div>
         `).join("");
-
         msgDiv.scrollTop = msgDiv.scrollHeight;
-
-        // --- Lifts ---
-        const liftDiv = document.getElementById("lifts");
-        liftDiv.innerHTML = data.lifts.map(l => `
-          <div class="lift-item">
-            <div class="lift-header">Lift ${l.id} – ${l.status}</div>
-            <div>Springere: ${(l.jumpers || []).join(", ")}</div>
-          </div>
-        `).join("");
       } catch (err) {
         console.warn("Kunne ikke hente data:", err);
       }
+      updateTotals();
+    }
+
+    function updateTotals() {
+      const heights = [1000,1500,2250,4000];
+      let totalJump = 0, totalFly = 0;
+      for (const h of heights) {
+        const jump = parseInt(document.getElementById(`jump${h}`).value) || 0;
+        const flyInput = document.getElementById(`fly${h}`);
+        let fly = parseInt(flyInput.value);
+        if (jump > 0 && (isNaN(fly) || fly === 0)) {
+          fly = 1;
+          flyInput.value = 1;
+        }
+        totalJump += jump;
+        totalFly += fly || 0;
+      }
+      document.getElementById("totals").textContent =
+        `Total springere: ${totalJump} • Total skærme: ${totalJump + totalFly}`;
     }
 
     async function sendMsg() {
@@ -198,23 +235,30 @@
       refresh();
     }
 
-    async function createLift() {
-      const id = document.getElementById("liftId").value;
-      const status = document.getElementById("liftStatus").value;
-      const jumpers = document.getElementById("liftJumpers").value
-                        .split(",").map(j => j.trim()).filter(j => j);
-      if (!id) return alert("Indtast et lift ID!");
-
-      const lift = { id: Number(id), status, jumpers };
+    async function sendLift() {
+      const heights = [1000,1500,2250,4000];
+      const levels = heights.map(h => ({
+        alt: h,
+        jumpers: parseInt(document.getElementById(`jump${h}`).value) || 0,
+        flybys: parseInt(document.getElementById(`fly${h}`).value) || 0
+      }));
+      const totalJump = levels.reduce((a,b)=>a+b.jumpers,0);
+      const totalFly = levels.reduce((a,b)=>a+b.flybys,0);
+      const lift = {
+        id: Date.now(),
+        status: "planned",
+        levels,
+        total_jumpers: totalJump,
+        total_screens: totalJump + totalFly
+      };
       const fd = new FormData();
       fd.append("data", JSON.stringify(lift));
       await fetch("/api/lift/create", { method:"POST", body: fd });
-
-      document.getElementById("liftId").value = "";
-      document.getElementById("liftJumpers").value = "";
+      alert("Lift sendt til pilot ✅");
       refresh();
     }
 
+    loadQuickButtons();
     refresh();
     setInterval(refresh, 3000);
   </script>
