@@ -121,26 +121,22 @@ function sumJumpersFromRows() {
   }, 0);
 }
 
-function recalcTotals(force = false) {
+function calcTotals() {
+  // Beregn kun visning — ingen lås
   const autoJumpers = sumJumpersFromRows();
 
-  if (force || !userEditedTotals) {
+  if (!userEditedTotals) {
     document.getElementById("totalJumpers").value = autoJumpers;
   }
 
-  if (force || !userEditedCanopies) {
+  if (!userEditedCanopies) {
     const currentTJ = parseInt(document.getElementById("totalJumpers").value) || autoJumpers;
     document.getElementById("totalCanopies").value = currentTJ;
   }
 }
 
-function resetTotals() {
-  userEditedTotals = false;
-  userEditedCanopies = false;
-  recalcTotals(true);
-}
-
 async function sendLift() {
+  // 1️⃣ Læs rækkerne
   const rows = [];
   heights.forEach((h) => {
     const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
@@ -150,21 +146,22 @@ async function sendLift() {
     }
   });
 
+  // 2️⃣ Læs felterne direkte fra UI
   const idInput = document.getElementById("liftId");
   const typedId = parseInt(idInput.value);
   const id = !isNaN(typedId) && typedId > 0 ? typedId : getNextLiftId();
 
-  // brug den faktisk skrevne værdi — IKKE auto
   const tjField = document.getElementById("totalJumpers");
   const tcField = document.getElementById("totalCanopies");
 
   const tj = parseInt(tjField.value);
   const tc = parseInt(tcField.value);
 
-  const autoJumpers = rows.reduce((a, b) => a + b.jumpers, 0);
-  const totalJumpers = !isNaN(tj) ? tj : autoJumpers;
+  // 3️⃣ Brug de faktiske tal som vises i felterne
+  const totalJumpers = !isNaN(tj) ? tj : sumJumpersFromRows();
   const totalCanopies = !isNaN(tc) ? tc : totalJumpers;
 
+  // 4️⃣ Byg og send lift
   const lift = {
     id,
     name: `Lift ${id}`,
@@ -183,6 +180,7 @@ async function sendLift() {
   setLastLiftId(id);
   idInput.value = id + 1;
 }
+
 
 function prependLiftListItem(lift) {
   const list = document.getElementById("liftList");
