@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
   <meta charset="utf-8" />
-  <title>Pilatus Manifest (web)</title>
+  <title>Pilatus Manifest</title>
   <link rel="stylesheet" href="/static/style.css" />
   <style>
     /* Små justeringer til totals & knapper (skader ikke eksisterende CSS) */
@@ -20,7 +20,7 @@
   </style>
 </head>
 <body>
-  <header>Pilatus Manifest (web)</header>
+  <header>Pilatus Manifest</header>
   <div class="container">
 
     <div class="row" style="justify-content:space-between;margin:8px 0 16px 0;">
@@ -54,6 +54,7 @@
           <label for="totalCanopies">Total skærme</label>
           <input id="totalCanopies" type="number" min="0" placeholder="(auto / manuelt)" />
         </div>
+        <button id="resetTotalsBtn" class="secondary" style="margin-top:6px;">🔄 Gendan beregnede værdier</button>
         <button id="sendLiftBtn" onclick="sendLift()">Send lift</button>
 
         <div style="margin-top:12px;">
