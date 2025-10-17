@@ -125,15 +125,45 @@ function sumJumpersFromRows() {
 function calcTotals() {
   const autoJumpers = sumJumpersFromRows();
 
+  // kun auto-opdater, hvis brugeren ikke selv har ændret
   if (!userEditedTotals) {
     document.getElementById("totalJumpers").value = autoJumpers;
   }
+
   if (!userEditedCanopies) {
-    // default: samme som springere
     const currentTJ = parseInt(document.getElementById("totalJumpers").value) || autoJumpers;
     document.getElementById("totalCanopies").value = currentTJ;
   }
 }
+
+function setupLift() {
+  renderLiftRows();
+
+  const idEl = document.getElementById("liftId");
+  if (!idEl.value || parseInt(idEl.value) < 1) {
+    idEl.value = getNextLiftId();
+  }
+
+  // registrér ændringer i inputfelter
+  document.getElementById("liftRows").addEventListener("input", (e) => {
+    const field = e.target.id;
+    // Når brugeren ændrer totalfelter, skal auto-beregning stoppes
+    if (field.startsWith("jump_") || field.startsWith("over_")) {
+      calcTotals();
+    }
+  });
+
+  document.getElementById("totalJumpers").addEventListener("input", () => {
+    userEditedTotals = true;
+  });
+
+  document.getElementById("totalCanopies").addEventListener("input", () => {
+    userEditedCanopies = true;
+  });
+
+  calcTotals();
+}
+
 
 async function sendLift() {
   // byg rows (springere > 0; overflyvninger default 1 hvis tom)
