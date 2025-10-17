@@ -1,1 +1,76 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Pilatus Manifest (web)</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>Pilatus Manifest (web)</header>
+  <div class="container">
+
+    <div class="row" style="justify-content:space-between;margin:8px 0 16px 0;">
+      <div><span id="club" class="badge"></span></div>
+      <div>
+        <button class="secondary" onclick="refreshState()">Opdatér</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- LIFT -->
+      <div class="card">
+        <h3>Opret lift</h3>
+        <div class="row">
+          <label>Lift nr.</label>
+          <input id="liftId" type="number" min="1" value="1" style="width:100px" />
+          <label>Status</label>
+          <select id="liftStatus">
+            <option value="active">Aktiv</option>
+            <option value="completed">Færdig</option>
+          </select>
+        </div>
+
+        <table class="table" style="margin-top:8px;">
+          <thead><tr><th>Højde (m)</th><th>Springere</th><th>Overflyvninger</th></tr></thead>
+          <tbody id="liftRows"></tbody>
+        </table>
+
+        <div class="row" style="margin-top:8px;">
+          <label>Total springere</label>
+          <input id="totalJumpers" type="number" min="0" placeholder="(valgfri)" />
+          <label>Total skærme</label>
+          <input id="totalCanopies" type="number" min="0" placeholder="(valgfri)" />
+          <button onclick="sendLift()">Send lift</button>
+        </div>
+
+        <div style="margin-top:12px;">
+          <h4>Sendte lifts (seneste først)</h4>
+          <div id="liftList"></div>
+        </div>
+      </div>
+
+      <!-- CHAT -->
+      <div class="card">
+        <h3>Beskeder</h3>
+        <div id="chat" class="chat"></div>
+        <div class="row" style="margin-top:8px;">
+          <input id="msgInput" type="text" placeholder="Skriv besked…" style="flex:1;" />
+          <button onclick="sendMsg()">Send</button>
+        </div>
+
+        <div style="margin-top:8px;">
+          <div style="font-weight:600; margin-bottom:6px;">Hurtigbeskeder</div>
+          <div id="quick" class="quick"></div>
+          <div class="row" style="margin-top:6px;">
+            <input id="quickText" type="text" placeholder="Ny hurtigbesked…" />
+            <button class="secondary" onclick="addQuick()">Tilføj</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
 
