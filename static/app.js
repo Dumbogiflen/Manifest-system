@@ -14,11 +14,16 @@ function renderQuick() {
     const btn = document.createElement("button");
     btn.textContent = msg;
     btn.style.color = "black"; // sort tekst
+    btn.style.margin = "4px";
     if (quickEditMode) {
       const del = document.createElement("span");
       del.textContent = " 🗑";
       del.style.cursor = "pointer";
-      del.onclick = () => { quickMessages.splice(i, 1); saveQuick(); renderQuick(); };
+      del.onclick = () => {
+        quickMessages.splice(i, 1);
+        saveQuick();
+        renderQuick();
+      };
       btn.appendChild(del);
       btn.disabled = true;
     } else {
@@ -27,10 +32,15 @@ function renderQuick() {
     quickDiv.appendChild(btn);
   });
 
+  // ⚙️ tandhjul til at åbne/lukke redigering
   const gear = document.createElement("button");
   gear.textContent = "⚙️";
   gear.className = "secondary";
-  gear.onclick = () => { quickEditMode = !quickEditMode; renderQuick(); };
+  gear.onclick = () => {
+    quickEditMode = !quickEditMode;
+    document.getElementById("quickConfig").style.display = quickEditMode ? "flex" : "none";
+    renderQuick();
+  };
   quickDiv.appendChild(gear);
 }
 
@@ -50,7 +60,7 @@ async function loadMessages() {
   const chat = document.getElementById("chat");
   chat.innerHTML = "";
 
-  (data.messages || []).forEach(m => {
+  (data.messages || []).forEach((m) => {
     const div = document.createElement("div");
     div.className = "msg " + (m.direction === "out" ? "out" : "in");
     div.textContent = m.text;
@@ -64,7 +74,7 @@ async function sendMsg(text) {
   if (!text) return;
   await fetch("/api/messages", {
     method: "POST",
-    body: new URLSearchParams({ text })
+    body: new URLSearchParams({ text }),
   });
   document.getElementById("msgInput").value = "";
   loadMessages();
@@ -79,7 +89,7 @@ let nextLiftId = 1;
 function renderLiftRows() {
   const tbody = document.getElementById("liftRows");
   tbody.innerHTML = "";
-  heights.forEach(h => {
+  heights.forEach((h) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${h}</td>
@@ -92,17 +102,19 @@ function renderLiftRows() {
 
 function calcTotals() {
   let totalJumpers = 0;
-  heights.forEach(h => {
+  heights.forEach((h) => {
     const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
     totalJumpers += j;
   });
   if (!userEditedTotals) document.getElementById("totalJumpers").value = totalJumpers;
-  if (!userEditedCanopies) document.getElementById("totalCanopies").value = document.getElementById("totalJumpers").value || totalJumpers;
+  if (!userEditedCanopies)
+    document.getElementById("totalCanopies").value =
+      document.getElementById("totalJumpers").value || totalJumpers;
 }
 
 async function sendLift() {
   const rows = [];
-  heights.forEach(h => {
+  heights.forEach((h) => {
     const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
     if (j > 0) {
       const o = parseInt(document.getElementById(`over_${h}`).value) || 1;
@@ -111,21 +123,24 @@ async function sendLift() {
   });
 
   const id = parseInt(document.getElementById("liftId").value) || nextLiftId;
-  const totalJumpers = parseInt(document.getElementById("totalJumpers").value) || rows.reduce((a, b) => a + b.jumpers, 0);
-  const totalCanopies = parseInt(document.getElementById("totalCanopies").value) || totalJumpers;
+  const totalJumpers =
+    parseInt(document.getElementById("totalJumpers").value) ||
+    rows.reduce((a, b) => a + b.jumpers, 0);
+  const totalCanopies =
+    parseInt(document.getElementById("totalCanopies").value) || totalJumpers;
 
   const lift = {
     id,
     name: `Lift ${id}`,
     status: "active",
     rows,
-    totals: { jumpers: totalJumpers, canopies: totalCanopies }
+    totals: { jumpers: totalJumpers, canopies: totalCanopies },
   };
 
   await fetch("/api/lift", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(lift)
+    body: JSON.stringify(lift),
   });
 
   const list = document.getElementById("liftList");
@@ -143,8 +158,8 @@ async function sendLift() {
 function setupLift() {
   renderLiftRows();
   document.getElementById("liftRows").addEventListener("input", calcTotals);
-  document.getElementById("totalJumpers").addEventListener("input", () => userEditedTotals = true);
-  document.getElementById("totalCanopies").addEventListener("input", () => userEditedCanopies = true);
+  document.getElementById("totalJumpers").addEventListener("input", () => (userEditedTotals = true));
+  document.getElementById("totalCanopies").addEventListener("input", () => (userEditedCanopies = true));
   calcTotals();
 }
 
