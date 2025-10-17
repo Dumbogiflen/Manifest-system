@@ -22,3 +22,22 @@ button.secondary { background:#eef6ff; color:#0a4a86; border:1px solid #bfdcff; 
 .quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 .quick button { background:#eef6ff; border:1px solid #bfdcff; border-radius:20px; padding:6px 10px; cursor:pointer; }
 
+/* Totals layout */
+#totalJumpers, #totalCanopies {
+  width: 100px;
+  margin-left: 8px;
+}
+
+.total-row {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+}
+
+#sendLiftBtn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  font-size: 16px;
+}
