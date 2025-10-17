@@ -1,1 +1,20 @@
-
+services:
+  - type: web
+    name: pilatus-manifest
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: MQTT_HOST
+        value: b984550852ed4879b205fb8f7745202a.s1.eu.hivemq.cloud
+      - key: MQTT_PORT
+        value: 8883
+      - key: MQTT_USER
+        value: Pilatus
+      - key: MQTT_PASS
+        sync: false   # <- sæt den manuelt i Render dashboard
+      - key: DATABASE_URL
+        sync: false   # fx: postgres://user:pass@host:5432/db  (valgfri)
+      - key: CLUB_NAME
+        value: Kolding Faldskærmsklub
