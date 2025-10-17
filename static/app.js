@@ -1,154 +1,155 @@
-const ALT_PRESETS = [1000, 1500, 2250, 4000];
+// --- Hurtigbeskeder ---
+let quickMessages = JSON.parse(localStorage.getItem("quickMessages") || '["Klar til lift","5 min forsinket","Skal tanke"]');
+let quickEditMode = false;
 
-async function jsonGet(url){ const r = await fetch(url); return r.json(); }
-async function formPost(url, data){
-  const fd = new FormData();
-  for (const [k,v] of Object.entries(data)) fd.append(k, v);
-  const r = await fetch(url, { method: "POST", body: fd });
-  return r.json();
-}
-async function jsonPost(url, obj){
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  return r.json();
+function saveQuick() {
+  localStorage.setItem("quickMessages", JSON.stringify(quickMessages));
 }
 
-function el(tag, attrs={}, children=[]){
-  const e = document.createElement(tag);
-  Object.entries(attrs).forEach(([k,v]) => {
-    if (k === "text") e.textContent = v;
-    else e.setAttribute(k, v);
+function renderQuick() {
+  const quickDiv = document.getElementById("quick");
+  quickDiv.innerHTML = "";
+
+  quickMessages.forEach((msg, i) => {
+    const btn = document.createElement("button");
+    btn.textContent = msg;
+    btn.style.color = "black"; // sort tekst
+    if (quickEditMode) {
+      const del = document.createElement("span");
+      del.textContent = " 🗑";
+      del.style.cursor = "pointer";
+      del.onclick = () => { quickMessages.splice(i, 1); saveQuick(); renderQuick(); };
+      btn.appendChild(del);
+      btn.disabled = true;
+    } else {
+      btn.onclick = () => sendMsg(msg);
+    }
+    quickDiv.appendChild(btn);
   });
-  (Array.isArray(children) ? children : [children]).forEach(c => {
-    if (c == null) return;
-    if (typeof c === "string") e.appendChild(document.createTextNode(c));
-    else e.appendChild(c);
-  });
-  return e;
+
+  const gear = document.createElement("button");
+  gear.textContent = "⚙️";
+  gear.className = "secondary";
+  gear.onclick = () => { quickEditMode = !quickEditMode; renderQuick(); };
+  quickDiv.appendChild(gear);
 }
 
-async function load(){
-  const state = await jsonGet("/api/state");
-  document.getElementById("club").textContent = state.club || "";
+function addQuick() {
+  const val = document.getElementById("quickText").value.trim();
+  if (!val) return;
+  quickMessages.push(val);
+  saveQuick();
+  document.getElementById("quickText").value = "";
+  renderQuick();
+}
 
-  // chat
+// --- Chat ---
+async function loadMessages() {
+  const res = await fetch("/api/state");
+  const data = await res.json();
   const chat = document.getElementById("chat");
   chat.innerHTML = "";
-  state.messages.forEach(m => {
-    const bubble = el("div", {class: "msg " + (m.direction==="in" ? "in":"out")}, [
-      el("div", {text: m.text}),
-      el("div", {class:"status", text: (m.status||"") + (m.ts ? (" • " + new Date(m.ts).toLocaleTimeString()) : "") })
-    ]);
-    chat.appendChild(bubble);
+
+  (data.messages || []).forEach(m => {
+    const div = document.createElement("div");
+    div.className = "msg " + (m.direction === "out" ? "out" : "in");
+    div.textContent = m.text;
+    chat.appendChild(div);
   });
+
   chat.scrollTop = chat.scrollHeight;
-
-  // lifts
-  const ll = document.getElementById("liftList");
-  ll.innerHTML = "";
-  state.lifts.forEach(l => {
-    const tag = el("div", {class:"row"}, [
-      el("div", {text: `${l.name || ("Lift " + l.id)} – ${l.status || "active"}`}),
-      el("div", {class:"badge", text: `Σ ${l.totals?.jumpers ?? 0}/${l.totals?.canopies ?? 0}`})
-    ]);
-    ll.appendChild(tag);
-  });
-
-  // quicks
-  const qs = await jsonGet("/api/quick");
-  const quick = document.getElementById("quick");
-  quick.innerHTML = "";
-  qs.forEach(q => {
-    const b = el("button", {text:q});
-    b.onclick = () => sendMsg(q);
-    quick.appendChild(b);
-  });
-
-  suggestNextLiftId(state.lifts);
 }
 
-function suggestNextLiftId(list){
-  const i = document.getElementById("liftId");
-  if (!list || !list.length) { i.value = 1; return; }
-  const maxId = Math.max(...list.map(x => Number(x.id)||0));
-  i.value = maxId + 1;
+async function sendMsg(text) {
+  if (!text) return;
+  await fetch("/api/messages", {
+    method: "POST",
+    body: new URLSearchParams({ text })
+  });
+  document.getElementById("msgInput").value = "";
+  loadMessages();
 }
 
-function buildLiftRowsUI(){
+// --- Lift ---
+const heights = [1000, 1500, 2250, 4000];
+let userEditedTotals = false;
+let userEditedCanopies = false;
+let nextLiftId = 1;
+
+function renderLiftRows() {
   const tbody = document.getElementById("liftRows");
   tbody.innerHTML = "";
-  ALT_PRESETS.forEach(alt => {
-    const tr = el("tr");
-    tr.appendChild(el("td", {text: alt}));
-    const j = el("input", {type:"number", min:"0", value:"", placeholder:"0", style:"width:90px"});
-    const o = el("input", {type:"number", min:"0", value:"", placeholder:"1", style:"width:90px"});
-    j.addEventListener("change", () => {
-      if (j.value && (!o.value || Number(o.value) === 0)) o.value = "1";
-    });
-    tr.appendChild(el("td", {}, j));
-    tr.appendChild(el("td", {}, o));
-    tr.dataset.alt = String(alt);
-    tr.dataset.jRef = j;
-    tr.dataset.oRef = o;
-    // vi kan ikke gemme refs i dataset direkte, så:
-    tr._j = j; tr._o = o;
+  heights.forEach(h => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${h}</td>
+      <td><input id="jump_${h}" type="number" min="0" style="width:80px"></td>
+      <td><input id="over_${h}" type="number" min="0" style="width:80px"></td>
+    `;
     tbody.appendChild(tr);
   });
 }
 
-async function sendLift(){
-  const id = Number(document.getElementById("liftId").value || "0");
-  const status = document.getElementById("liftStatus").value || "active";
-  const tj = document.getElementById("totalJumpers").value;
-  const tc = document.getElementById("totalCanopies").value;
+function calcTotals() {
+  let totalJumpers = 0;
+  heights.forEach(h => {
+    const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
+    totalJumpers += j;
+  });
+  if (!userEditedTotals) document.getElementById("totalJumpers").value = totalJumpers;
+  if (!userEditedCanopies) document.getElementById("totalCanopies").value = document.getElementById("totalJumpers").value || totalJumpers;
+}
 
+async function sendLift() {
   const rows = [];
-  document.querySelectorAll("#liftRows tr").forEach(tr => {
-    const alt = Number(tr.childNodes[0].textContent);
-    const j = Number(tr._j.value || "0");
-    const o = Number(tr._o.value || (j>0 ? "1":"0"));
-    if (j > 0) rows.push({alt, jumpers:j, overflights:o});
+  heights.forEach(h => {
+    const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
+    if (j > 0) {
+      const o = parseInt(document.getElementById(`over_${h}`).value) || 1;
+      rows.push({ alt: h, jumpers: j, overflights: o });
+    }
   });
 
-  if (!id || rows.length === 0){
-    alert("Angiv lift nr. og mindst én række med springere.");
-    return;
-  }
+  const id = parseInt(document.getElementById("liftId").value) || nextLiftId;
+  const totalJumpers = parseInt(document.getElementById("totalJumpers").value) || rows.reduce((a, b) => a + b.jumpers, 0);
+  const totalCanopies = parseInt(document.getElementById("totalCanopies").value) || totalJumpers;
 
-  const payload = {
+  const lift = {
     id,
-    status,
+    name: `Lift ${id}`,
+    status: "active",
     rows,
-    totals_jumpers: tj ? Number(tj) : null,
-    totals_canopies: tc ? Number(tc) : null
+    totals: { jumpers: totalJumpers, canopies: totalCanopies }
   };
 
-  await jsonPost("/api/lift", payload);
-  await load();
+  await fetch("/api/lift", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(lift)
+  });
+
+  const list = document.getElementById("liftList");
+  const item = document.createElement("div");
+  item.textContent = `${lift.name}: ${totalJumpers} springere / ${totalCanopies} skærme`;
+  list.prepend(item);
+
+  nextLiftId = id + 1;
+  document.getElementById("liftId").value = nextLiftId;
+
+  userEditedTotals = false;
+  userEditedCanopies = false;
 }
 
-async function sendMsg(textOverride){
-  const text = textOverride ?? document.getElementById("msgInput").value.trim();
-  if (!text) return;
-  await formPost("/api/messages", {text});
-  document.getElementById("msgInput").value = "";
-  await load();
+function setupLift() {
+  renderLiftRows();
+  document.getElementById("liftRows").addEventListener("input", calcTotals);
+  document.getElementById("totalJumpers").addEventListener("input", () => userEditedTotals = true);
+  document.getElementById("totalCanopies").addEventListener("input", () => userEditedCanopies = true);
+  calcTotals();
 }
 
-async function addQuick(){
-  const t = document.getElementById("quickText").value.trim();
-  if (!t) return;
-  await formPost("/api/quick/add", {text:t});
-  document.getElementById("quickText").value="";
-  await load();
-}
-
-async function refreshState(){ await load(); }
-
-buildLiftRowsUI();
-load();
-setInterval(load, 4000);
-
+// --- Init ---
+renderQuick();
+setupLift();
+loadMessages();
+setInterval(loadMessages, 3000);
