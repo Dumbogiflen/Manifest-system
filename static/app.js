@@ -91,7 +91,6 @@ const heights = [1000, 1500, 2250, 4000];
 let userEditedTotals = false;
 let userEditedCanopies = false;
 
-// gem/brug sidste lift-id lokalt
 function getNextLiftId() {
   const last = parseInt(localStorage.getItem("lastLiftId") || "0", 10);
   return isNaN(last) ? 1 : last + 1;
@@ -122,18 +121,74 @@ function sumJumpersFromRows() {
   }, 0);
 }
 
-function calcTotals() {
+function recalcTotals(force = false) {
   const autoJumpers = sumJumpersFromRows();
 
-  // kun auto-opdater, hvis brugeren ikke selv har ændret
-  if (!userEditedTotals) {
+  if (force || !userEditedTotals) {
     document.getElementById("totalJumpers").value = autoJumpers;
   }
 
-  if (!userEditedCanopies) {
+  if (force || !userEditedCanopies) {
     const currentTJ = parseInt(document.getElementById("totalJumpers").value) || autoJumpers;
     document.getElementById("totalCanopies").value = currentTJ;
   }
+}
+
+function resetTotals() {
+  userEditedTotals = false;
+  userEditedCanopies = false;
+  recalcTotals(true);
+}
+
+async function sendLift() {
+  const rows = [];
+  heights.forEach((h) => {
+    const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
+    if (j > 0) {
+      const o = parseInt(document.getElementById(`over_${h}`).value) || 1;
+      rows.push({ alt: h, jumpers: j, overflights: o });
+    }
+  });
+
+  const idInput = document.getElementById("liftId");
+  const typedId = parseInt(idInput.value);
+  const id = !isNaN(typedId) && typedId > 0 ? typedId : getNextLiftId();
+
+  // brug den faktisk skrevne værdi — IKKE auto
+  const tjField = document.getElementById("totalJumpers");
+  const tcField = document.getElementById("totalCanopies");
+
+  const tj = parseInt(tjField.value);
+  const tc = parseInt(tcField.value);
+
+  const autoJumpers = rows.reduce((a, b) => a + b.jumpers, 0);
+  const totalJumpers = !isNaN(tj) ? tj : autoJumpers;
+  const totalCanopies = !isNaN(tc) ? tc : totalJumpers;
+
+  const lift = {
+    id,
+    name: `Lift ${id}`,
+    status: "active",
+    rows,
+    totals: { jumpers: totalJumpers, canopies: totalCanopies },
+  };
+
+  await fetch("/api/lift", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(lift),
+  });
+
+  prependLiftListItem(lift);
+  setLastLiftId(id);
+  idInput.value = id + 1;
+}
+
+function prependLiftListItem(lift) {
+  const list = document.getElementById("liftList");
+  const item = document.createElement("div");
+  item.textContent = `${lift.name}: ${lift.totals.jumpers} springere / ${lift.totals.canopies} skærme`;
+  list.prepend(item);
 }
 
 function setupLift() {
@@ -144,25 +199,14 @@ function setupLift() {
     idEl.value = getNextLiftId();
   }
 
-  // registrér ændringer i inputfelter
-  document.getElementById("liftRows").addEventListener("input", (e) => {
-    const field = e.target.id;
-    // Når brugeren ændrer totalfelter, skal auto-beregning stoppes
-    if (field.startsWith("jump_") || field.startsWith("over_")) {
-      calcTotals();
-    }
-  });
+  document.getElementById("liftRows").addEventListener("input", recalcTotals);
+  document.getElementById("totalJumpers").addEventListener("input", () => (userEditedTotals = true));
+  document.getElementById("totalCanopies").addEventListener("input", () => (userEditedCanopies = true));
+  document.getElementById("resetTotalsBtn").addEventListener("click", resetTotals);
 
-  document.getElementById("totalJumpers").addEventListener("input", () => {
-    userEditedTotals = true;
-  });
-
-  document.getElementById("totalCanopies").addEventListener("input", () => {
-    userEditedCanopies = true;
-  });
-
-  calcTotals();
+  recalcTotals(true);
 }
+
 
 
 async function sendLift() {
