@@ -5,170 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pilatus Manifest</title>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background-color: #f4f7fa;
-      margin: 0;
-      padding: 20px;
-      color: #222;
-    }
-    h1 {
-      text-align: center;
-      color: #004080;
-    }
-    section {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      padding: 20px;
-      margin-bottom: 24px;
-    }
+    body{font-family:system-ui,Arial,sans-serif;background:#f4f7fa;margin:0;padding:20px;color:#222}
+    h1{text-align:center;color:#004080;margin:0 0 16px}
+    section{background:#fff;border-radius:16px;box-shadow:0 2px 6px rgba(0,0,0,.08);padding:20px;margin-bottom:24px}
 
     /* Beskeder */
-    .msg-container {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid #ccd6e0;
-      border-radius: 10px;
-      padding: 10px;
-      background: #f9fafb;
-    }
-    .msg {
-      padding: 10px 14px;
-      border-radius: 16px;
-      max-width: 75%;
-      line-height: 1.3em;
-      word-wrap: break-word;
-    }
-    .msg.manifest {
-      background: #004080;
-      color: white;
-      align-self: flex-end;
-    }
-    .msg.pilot {
-      background: #e5e7eb;
-      color: black;
-      align-self: flex-start;
-    }
+    .msg-container{display:flex;flex-direction:column;gap:10px;max-height:320px;overflow-y:auto;border:1px solid #ccd6e0;border-radius:12px;padding:10px;background:#f9fafb}
+    .msg{padding:10px 14px;border-radius:16px;max-width:75%;line-height:1.35;word-wrap:break-word}
+    .msg.me{align-self:flex-end;background:#004080;color:#fff}    /* manifest (mig) */
+    .msg.other{align-self:flex-start;background:#e5e7eb;color:#000}/* pilot (modpart) */
 
-    /* Hurtigbeskeder */
-    .quick-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .quick-buttons button {
-      background: #dfe9f3;
-      color: #000;
-      border: 1px solid #ccd6e0;
-      border-radius: 12px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background 0.2s;
-    }
-    .quick-buttons button:hover {
-      background: #cbd8e6;
-    }
-
-    .config-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 20px;
-      float: right;
-    }
-
-    .quick-config {
-      display: none;
-      margin-top: 10px;
-    }
-    .quick-config.active {
-      display: block;
-    }
-    .quick-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f1f5f9;
-      padding: 6px 10px;
-      border-radius: 8px;
-      margin-bottom: 6px;
-    }
-    .quick-item button {
-      background: none;
-      border: none;
-      color: red;
-      cursor: pointer;
-    }
+    .quick-wrap{margin-top:10px}
+    .quick-buttons{display:flex;flex-wrap:wrap;gap:8px}
+    .quick-buttons button{background:#dfe9f3;color:#000;border:1px solid #ccd6e0;border-radius:12px;padding:8px 14px;cursor:pointer;font-size:14px}
+    .quick-buttons button:hover{background:#cbd8e6}
+    .config-btn{background:none;border:none;cursor:pointer;font-size:20px;float:right}
+    .quick-config{display:none;margin-top:10px}
+    .quick-config.active{display:block}
+    .quick-item{display:flex;align-items:center;justify-content:space-between;background:#f1f5f9;padding:6px 10px;border-radius:8px;margin-bottom:6px}
+    .quick-item button{background:none;border:none;color:#c00;cursor:pointer}
 
     /* Lift */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    th, td {
-      padding: 6px 8px;
-      border-bottom: 1px solid #ddd;
-      text-align: center;
-    }
-    input[type=number] {
-      width: 60px;
-      padding: 4px;
-      border-radius: 6px;
-      border: 1px solid #ccd6e0;
-    }
-    .totals {
-      margin-top: 12px;
-    }
-    .totals div {
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    .totals label {
-      width: 140px;
-      text-align: right;
-    }
-    .send-btn {
-      display: block;
-      width: 100%;
-      background: #004080;
-      color: white;
-      border: none;
-      border-radius: 12px;
-      padding: 12px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 14px;
-    }
-    .send-btn:hover {
-      background: #0055a3;
-    }
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center}
+    input[type=number]{width:70px;padding:5px;border-radius:8px;border:1px solid #ccd6e0}
+    .totals{margin-top:12px}
+    .totals .row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .totals label{width:150px;text-align:right}
+    .send-btn{display:block;width:100%;background:#004080;color:#fff;border:none;border-radius:12px;padding:12px;font-size:16px;cursor:pointer;margin-top:14px}
+    .send-btn:hover{background:#0055a3}
 
-    /* Lift historik */
-    .lift-history {
-      margin-top: 20px;
-      background: #f9fafb;
-      border-radius: 10px;
-      padding: 10px;
-      font-size: 14px;
-      border: 1px solid #ccd6e0;
-    }
-    .lift-history h4 {
-      margin: 0 0 8px 0;
-      color: #004080;
-    }
-    .lift-history div {
-      margin-bottom: 4px;
-    }
+    /* Historik */
+    .lift-history{margin-top:16px;background:#f9fafb;border-radius:10px;padding:10px;font-size:14px;border:1px solid #ccd6e0}
+    .lift-history h4{margin:0 0 8px;color:#004080}
+    .lift-history div{margin-bottom:4px}
   </style>
 </head>
 <body>
@@ -176,29 +46,35 @@
 
   <!-- BESKEDER -->
   <section>
-    <h2>Beskeder <button class="config-btn" id="configToggle">⚙️</button></h2>
+    <h2 style="margin-top:0">Beskeder <button class="config-btn" id="configToggle" title="Redigér hurtigbeskeder">⚙️</button></h2>
     <div class="msg-container" id="messages"></div>
 
-    <form id="msgForm" style="margin-top:10px;">
-      <input type="text" id="msgInput" placeholder="Skriv en besked..." style="width:80%;padding:8px;border-radius:8px;border:1px solid #ccd6e0;" required />
-      <button type="submit" style="padding:8px 14px;border-radius:8px;background:#004080;color:white;border:none;cursor:pointer;">Send</button>
+    <form id="msgForm" style="margin-top:10px;display:flex;gap:8px">
+      <input type="text" id="msgInput" placeholder="Skriv en besked…" style="flex:1;padding:10px;border-radius:10px;border:1px solid #ccd6e0" required />
+      <button type="submit" style="padding:10px 14px;border-radius:10px;background:#004080;color:#fff;border:none;cursor:pointer">Send</button>
     </form>
 
-    <div class="quick-buttons" id="quickButtons"></div>
-
-    <div class="quick-config" id="quickConfig">
-      <h4>Rediger hurtigbeskeder</h4>
-      <div id="quickList"></div>
-      <input type="text" id="newQuick" placeholder="Ny hurtigbesked..." />
-      <button onclick="addQuick()">Tilføj</button>
+    <div class="quick-wrap">
+      <div class="quick-buttons" id="quickButtons"></div>
+      <div class="quick-config" id="quickConfig">
+        <h4 style="margin:10px 0 6px">Rediger hurtigbeskeder</h4>
+        <div id="quickList"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="text" id="newQuick" placeholder="Ny hurtigbesked…" style="flex:1;padding:8px;border:1px solid #ccd6e0;border-radius:8px" />
+          <button type="button" onclick="addQuick()" style="padding:8px 12px;border-radius:8px;border:none;background:#0a84ff;color:#fff;cursor:pointer">Tilføj</button>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- LIFTS -->
   <section>
-    <h2>Liftliste</h2>
-    <label for="liftNumber">Lift nr:</label>
-    <input type="number" id="liftNumber" min="1" value="1" />
+    <h2 style="margin-top:0">Liftliste</h2>
+
+    <div style="margin-bottom:8px">
+      <label for="liftNumber" style="margin-right:8px">Lift nr:</label>
+      <input type="number" id="liftNumber" min="1" value="1" />
+    </div>
 
     <table>
       <thead>
@@ -217,13 +93,13 @@
     </table>
 
     <div class="totals">
-      <div>
-        <label>Total springere:</label>
-        <input type="number" id="totalJumpers" min="0">
+      <div class="row">
+        <label for="totalJumpers">Total springere:</label>
+        <input type="number" id="totalJumpers" min="0" />
       </div>
-      <div>
-        <label>Total skærme:</label>
-        <input type="number" id="totalCanopies" min="0">
+      <div class="row">
+        <label for="totalCanopies">Total skærme:</label>
+        <input type="number" id="totalCanopies" min="0" />
       </div>
     </div>
 
@@ -237,106 +113,155 @@
 
   <script>
     const apiBase = "/api";
-    let quickMessages = JSON.parse(localStorage.getItem("quickMessages") || '["Klar til lift", "5 min forsinket", "Skal tanke"]');
-    let sentLifts = JSON.parse(localStorage.getItem("sentLifts") || "[]");
 
-    // ---------- Quick Messages ----------
-    function renderQuickButtons() {
+    // --- Hurtigbeskeder (persist i localStorage) ---
+    let quickMessages = JSON.parse(localStorage.getItem("quickMessages") || '["Klar til lift","5 min forsinket","Skal tanke"]');
+    function persistQuick(){ localStorage.setItem("quickMessages", JSON.stringify(quickMessages)); }
+
+    function renderQuickButtons(){
       const cont = document.getElementById("quickButtons");
       cont.innerHTML = "";
       quickMessages.forEach(q => {
-        const btn = document.createElement("button");
-        btn.textContent = q;
-        btn.onclick = () => sendMessage(q);
-        cont.appendChild(btn);
+        const b = document.createElement("button");
+        b.textContent = q;
+        b.onclick = () => sendMessage(q);
+        cont.appendChild(b);
       });
-      localStorage.setItem("quickMessages", JSON.stringify(quickMessages));
       renderQuickList();
+      persistQuick();
     }
-
-    function renderQuickList() {
+    function renderQuickList(){
       const list = document.getElementById("quickList");
       list.innerHTML = "";
-      quickMessages.forEach((q, i) => {
-        const div = document.createElement("div");
-        div.className = "quick-item";
-        div.innerHTML = `<span>${q}</span><button onclick="removeQuick(${i})">🗑</button>`;
-        list.appendChild(div);
+      quickMessages.forEach((q,i)=>{
+        const row = document.createElement("div");
+        row.className = "quick-item";
+        row.innerHTML = `<span>${q}</span><button onclick="removeQuick(${i})">🗑</button>`;
+        list.appendChild(row);
       });
     }
-
-    function addQuick() {
-      const val = document.getElementById("newQuick").value.trim();
-      if (!val) return;
-      quickMessages.push(val);
+    function addQuick(){
+      const v = document.getElementById("newQuick").value.trim();
+      if(!v) return;
+      quickMessages.push(v);
       document.getElementById("newQuick").value = "";
       renderQuickButtons();
     }
-
-    function removeQuick(i) {
-      quickMessages.splice(i, 1);
+    function removeQuick(i){
+      quickMessages.splice(i,1);
       renderQuickButtons();
     }
-
-    document.getElementById("configToggle").onclick = () => {
+    document.getElementById("configToggle").onclick = ()=> {
       document.getElementById("quickConfig").classList.toggle("active");
     };
 
-    // ---------- Messages ----------
-    async function sendMessage(text) {
-      await fetch(`${apiBase}/messages`, {
-        method: "POST",
-        body: new URLSearchParams({ text }),
-      });
+    // --- Beskeder (robust bobler) ---
+    function classifyMessage(m){
+      // Find “afsenderfelt” robust
+      const raw = (m.sender ?? m.role ?? m.from ?? "").toString().toLowerCase();
+      // I manifest-UI er “mig” = manifest; modpart = pilot
+      if (raw.includes("pilot")) return "other";
+      if (raw.includes("manifest")) return "me";
+      // fallback: hvis intet felt, antag at egne beskeder kommer tilbage uden afsender -> "me"
+      return m.sender ? "other" : "me";
+    }
+
+    async function loadMessages(){
+      try{
+        const res = await fetch(`${apiBase}/state`);
+        const data = await res.json();
+        const box = document.getElementById("messages");
+        box.innerHTML = "";
+        (data.messages || []).forEach(m=>{
+          const div = document.createElement("div");
+          div.className = `msg ${classifyMessage(m)}`;
+          div.textContent = m.text ?? "";
+          box.appendChild(div);
+        });
+        box.scrollTop = box.scrollHeight;
+      }catch(e){ /* ignore */ }
+    }
+
+    async function sendMessage(text){
+      if(!text?.trim()) return;
+      await fetch(`${apiBase}/messages`, { method:"POST", body: new URLSearchParams({text}) });
+      document.getElementById("msgInput").value = "";
       loadMessages();
     }
-
-    async function loadMessages() {
-      const res = await fetch(`${apiBase}/state`);
-      const data = await res.json();
-      const box = document.getElementById("messages");
-      box.innerHTML = "";
-      data.messages.forEach(m => {
-        const div = document.createElement("div");
-        div.className = `msg ${m.sender}`;
-        div.textContent = m.text;
-        box.appendChild(div);
-      });
-      box.scrollTop = box.scrollHeight;
-    }
-
-    document.getElementById("msgForm").onsubmit = e => {
+    document.getElementById("msgForm").onsubmit = (e)=>{
       e.preventDefault();
-      const text = document.getElementById("msgInput").value;
-      sendMessage(text);
-      document.getElementById("msgInput").value = "";
+      sendMessage(document.getElementById("msgInput").value);
     };
 
-    // ---------- Lift ----------
-    function updateTotals() {
-      let total = 0;
-      [1000,1500,2250,4000].forEach(a => {
-        total += +document.getElementById(`jump${a}`).value || 0;
-      });
-      document.getElementById("totalJumpers").value = total;
-      const canopyField = document.getElementById("totalCanopies");
-      if (!canopyField.value) canopyField.value = total;
-    }
+    // --- Lift (auto-sum + manuelt override) ---
+    let userEditedTotals = false;
+    let userEditedCanopies = false;
 
-    document.querySelectorAll("input[type=number]").forEach(inp => {
-      inp.addEventListener("input", updateTotals);
+    const jumpersInput = document.getElementById("totalJumpers");
+    const canopiesInput = document.getElementById("totalCanopies");
+
+    jumpersInput.addEventListener("input", ()=>{
+      userEditedTotals = true;
+      if(!userEditedCanopies){
+        canopiesInput.value = jumpersInput.value; // hold skærme i sync indtil man selv skriver i skærme-feltet
+      }
+    });
+    canopiesInput.addEventListener("input", ()=>{
+      userEditedCanopies = true;
     });
 
-    async function sendLift() {
-      const rows = [];
-      [1000,1500,2250,4000].forEach(a => {
-        const j = +document.getElementById(`jump${a}`).value || 0;
-        const o = +document.getElementById(`over${a}`).value || (j > 0 ? 1 : 0);
-        if (j > 0) rows.push({ alt:a, jumpers:j, overflights:o });
+    function sumRowJumpers(){
+      return [1000,1500,2250,4000].reduce((acc,alt)=>{
+        return acc + (+document.getElementById(`jump${alt}`).value || 0);
+      },0);
+    }
+
+    function updateTotals(){
+      const sum = sumRowJumpers();
+      if(!userEditedTotals){
+        jumpersInput.value = sum;
+      }
+      if(!userEditedCanopies){
+        canopiesInput.value = jumpersInput.value || sum;
+      }
+    }
+
+    // Reager på alle række-inputs
+    [1000,1500,2250,4000].forEach(alt=>{
+      document.getElementById(`jump${alt}`).addEventListener("input", updateTotals);
+      document.getElementById(`over${alt}`).addEventListener("input", updateTotals);
+    });
+
+    // Historik lokalt
+    let sentLifts = JSON.parse(localStorage.getItem("sentLifts") || "[]");
+    function persistLifts(){ localStorage.setItem("sentLifts", JSON.stringify(sentLifts)); }
+
+    function renderLiftHistory(){
+      const list = document.getElementById("liftList");
+      list.innerHTML = "";
+      sentLifts.slice().reverse().forEach(l=>{
+        const d = document.createElement("div");
+        d.textContent = `${l.name} – ${l.totals.jumpers} springere / ${l.totals.canopies} skærme`;
+        list.appendChild(d);
       });
-      const totalJumpers = +document.getElementById("totalJumpers").value || rows.reduce((s,r)=>s+r.jumpers,0);
-      const totalCanopies = +document.getElementById("totalCanopies").value || totalJumpers;
-      const id = +document.getElementById("liftNumber").value;
+    }
+
+    async function sendLift(){
+      // Byg rækker (udelad rækker med 0 springere)
+      const rows = [];
+      [1000,1500,2250,4000].forEach(alt=>{
+        const j = +document.getElementById(`jump${alt}`).value || 0;
+        if(j>0){
+          const o = +document.getElementById(`over${alt}`).value || 1; // default 1 hvis udfyldt springere
+          rows.push({ alt, jumpers:j, overflights:o });
+        }
+      });
+
+      // Totals (auto hvis tomme)
+      const totalJumpers = +jumpersInput.value || sumRowJumpers();
+      const totalCanopies = +canopiesInput.value || totalJumpers;
+
+      const id = +document.getElementById("liftNumber").value || 1;
       const lift = {
         id,
         name: `Lift ${id}`,
@@ -344,30 +269,29 @@
         rows,
         totals: { jumpers: totalJumpers, canopies: totalCanopies }
       };
+
       await fetch(`${apiBase}/lift`, {
         method: "POST",
         headers: { "Content-Type":"application/json" },
         body: JSON.stringify(lift)
       });
+
+      // Gem historik lokalt og bump lift-nummer
       sentLifts.push(lift);
-      localStorage.setItem("sentLifts", JSON.stringify(sentLifts));
+      persistLifts();
       renderLiftHistory();
+
       document.getElementById("liftNumber").value = id + 1;
+
+      // Nulstil “auto” logik hvis du vil — men vi lader brugerens evt. manuelt indtastede totals blive
     }
 
-    function renderLiftHistory() {
-      const list = document.getElementById("liftList");
-      list.innerHTML = "";
-      sentLifts.forEach(l => {
-        const div = document.createElement("div");
-        div.textContent = `${l.name} – ${l.totals.jumpers} springere / ${l.totals.canopies} skærme`;
-        list.appendChild(div);
-      });
-    }
-
+    // Init
     renderQuickButtons();
-    loadMessages();
     renderLiftHistory();
+    updateTotals(); // sæt totals initialt
+
+    loadMessages();
     setInterval(loadMessages, 3000);
   </script>
 </body>
