@@ -294,4 +294,81 @@
     async function loadMessages() {
       const res = await fetch(`${apiBase}/state`);
       const data = await res.json();
-      const box =
+      const box = document.getElementById("messages");
+      box.innerHTML = "";
+      data.messages.forEach(m => {
+        const div = document.createElement("div");
+        div.className = `msg ${m.sender}`;
+        div.textContent = m.text;
+        box.appendChild(div);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+
+    document.getElementById("msgForm").onsubmit = e => {
+      e.preventDefault();
+      const text = document.getElementById("msgInput").value;
+      sendMessage(text);
+      document.getElementById("msgInput").value = "";
+    };
+
+    // ---------- Lift ----------
+    function updateTotals() {
+      let total = 0;
+      [1000,1500,2250,4000].forEach(a => {
+        total += +document.getElementById(`jump${a}`).value || 0;
+      });
+      document.getElementById("totalJumpers").value = total;
+      const canopyField = document.getElementById("totalCanopies");
+      if (!canopyField.value) canopyField.value = total;
+    }
+
+    document.querySelectorAll("input[type=number]").forEach(inp => {
+      inp.addEventListener("input", updateTotals);
+    });
+
+    async function sendLift() {
+      const rows = [];
+      [1000,1500,2250,4000].forEach(a => {
+        const j = +document.getElementById(`jump${a}`).value || 0;
+        const o = +document.getElementById(`over${a}`).value || (j > 0 ? 1 : 0);
+        if (j > 0) rows.push({ alt:a, jumpers:j, overflights:o });
+      });
+      const totalJumpers = +document.getElementById("totalJumpers").value || rows.reduce((s,r)=>s+r.jumpers,0);
+      const totalCanopies = +document.getElementById("totalCanopies").value || totalJumpers;
+      const id = +document.getElementById("liftNumber").value;
+      const lift = {
+        id,
+        name: `Lift ${id}`,
+        status: "active",
+        rows,
+        totals: { jumpers: totalJumpers, canopies: totalCanopies }
+      };
+      await fetch(`${apiBase}/lift`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify(lift)
+      });
+      sentLifts.push(lift);
+      localStorage.setItem("sentLifts", JSON.stringify(sentLifts));
+      renderLiftHistory();
+      document.getElementById("liftNumber").value = id + 1;
+    }
+
+    function renderLiftHistory() {
+      const list = document.getElementById("liftList");
+      list.innerHTML = "";
+      sentLifts.forEach(l => {
+        const div = document.createElement("div");
+        div.textContent = `${l.name} – ${l.totals.jumpers} springere / ${l.totals.canopies} skærme`;
+        list.appendChild(div);
+      });
+    }
+
+    renderQuickButtons();
+    loadMessages();
+    renderLiftHistory();
+    setInterval(loadMessages, 3000);
+  </script>
+</body>
+</html>
