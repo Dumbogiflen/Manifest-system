@@ -10,8 +10,11 @@ import paho.mqtt.client as mqtt
 # ==============================
 # KONFIGURATION
 # ==============================
-BROKER = "broker.hivemq.com"
-PORT = 1883
+BROKER = "b984550852ed4879b205fb8f7745202a.s1.eu.hivemq.cloud"
+PORT = 8884  # WebSocket + TLS
+MQTT_USER = "Pilatus"
+MQTT_PASS = "N*Zhf2Siub"
+
 TOPIC_MSG_MANIFEST = "pilatus/messages/manifest"
 TOPIC_MSG_PILOT = "pilatus/messages/pilot"
 TOPIC_LIFT = "pilatus/lift"
@@ -33,21 +36,30 @@ messages: list[dict] = []
 sent_lifts: list[dict] = []
 
 # ==============================
-# MQTT
+# MQTT-FUNKTIONER
 # ==============================
+def create_client() -> mqtt.Client:
+    """Opretter en MQTT klient med WebSocket og TLS."""
+    client = mqtt.Client(transport="websockets")
+    client.username_pw_set(MQTT_USER, MQTT_PASS)
+    client.tls_set()  # aktiver TLS
+    client.on_connect = on_connect
+    client.on_message = on_message
+    return client
+
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print("✅ MQTT forbundet til broker")
+        print("✅ Forbundet til HiveMQ via WebSocket/TLS")
         client.subscribe(TOPIC_MSG_PILOT)
         client.subscribe(TOPIC_LIFT)
     else:
-        print(f"⚠️ MQTT fejl (rc={rc})")
+        print(f"⚠️ MQTT-forbindelse fejlede (rc={rc})")
 
 def on_message(client, userdata, msg):
     try:
         payload = msg.payload.decode()
-        print(f"📩 MQTT modtaget [{msg.topic}] {payload}")
         data = json.loads(payload)
+        print(f"📩 Modtaget fra {msg.topic}: {payload}")
     except Exception as e:
         print(f"❌ MQTT parse fejl: {e}")
         return
@@ -59,18 +71,18 @@ def on_message(client, userdata, msg):
     elif msg.topic == TOPIC_LIFT:
         sent_lifts.insert(0, {**data, "ts": time.time()})
 
-# Start MQTT i separat tråd
-def start_mqtt():
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
+def mqtt_background():
+    """Kører MQTT loop i separat tråd."""
+    client = create_client()
     client.connect(BROKER, PORT, 60)
     client.loop_forever()
 
-mqtt_thread = threading.Thread(target=start_mqtt, daemon=True)
-mqtt_thread.start()
+# Start MQTT baggrundsforbindelse
+threading.Thread(target=mqtt_background, daemon=True).start()
 
-# Hjælpefunktioner
+# ==============================
+# HJÆLPEFUNKTIONER
+# ==============================
 def normalize_lift(raw: dict) -> dict:
     lid = int(raw.get("id") or 0)
     name = raw.get("name") or f"Lift {lid}"
@@ -129,8 +141,8 @@ async def send_message(text: str = Form(...)):
     }
     messages.append(msg)
     print(f"📤 Sender besked til MQTT: {msg}")
-    # Lav en midlertidig client til publishing
-    pub = mqtt.Client()
+
+    pub = create_client()
     pub.connect(BROKER, PORT, 60)
     pub.publish(TOPIC_MSG_MANIFEST, json.dumps(msg))
     pub.disconnect()
@@ -144,7 +156,7 @@ async def send_lift(lift: dict = Body(...)):
         sent_lifts.pop()
 
     print(f"📤 Sender lift til MQTT: {json.dumps(payload)}")
-    pub = mqtt.Client()
+    pub = create_client()
     pub.connect(BROKER, PORT, 60)
     pub.publish(TOPIC_LIFT, json.dumps(payload), qos=1, retain=False)
     pub.disconnect()
@@ -155,5 +167,5 @@ async def send_lift(lift: dict = Body(...)):
 # ==============================
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starter Pilatus Manifest på port 8000")
+    print("🚀 Starter Pilatus Manifest på port 8000 (Render/Cloud klar)")
     uvicorn.run(app, host="0.0.0.0", port=8000)
