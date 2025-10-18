@@ -1,89 +1,81 @@
 import os
 import json
 import time
+import threading
 from fastapi import FastAPI, Form, Body
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 import paho.mqtt.client as mqtt
 
 # ==============================
 # KONFIGURATION
 # ==============================
-BROKER = "broker.hivemq.com"  # offentlig MQTT broker
+BROKER = "broker.hivemq.com"
 PORT = 1883
 TOPIC_MSG_MANIFEST = "pilatus/messages/manifest"
 TOPIC_MSG_PILOT = "pilatus/messages/pilot"
 TOPIC_LIFT = "pilatus/lift"
-
 CLUB_NAME = "Pilatus Manifest"
 
 BASE_DIR = os.path.dirname(__file__)
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 # ==============================
-# FASTAPI APP
+# FASTAPI
 # ==============================
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ==============================
-# DATASTRUKTURER
+# DATA
 # ==============================
 messages: list[dict] = []
 sent_lifts: list[dict] = []
 
 # ==============================
-# MQTT CALLBACKS
+# MQTT
 # ==============================
 def on_connect(client, userdata, flags, rc):
-    print("✅ Forbundet til MQTT Broker" if rc == 0 else f"⚠️ MQTT-fejl ({rc})")
-    client.subscribe(TOPIC_MSG_PILOT)
-    client.subscribe(TOPIC_LIFT)
+    if rc == 0:
+        print("✅ MQTT forbundet til broker")
+        client.subscribe(TOPIC_MSG_PILOT)
+        client.subscribe(TOPIC_LIFT)
+    else:
+        print(f"⚠️ MQTT fejl (rc={rc})")
 
 def on_message(client, userdata, msg):
-    topic = msg.topic
-    payload = msg.payload.decode()
-    print(f"📩 Modtaget fra {topic}: {payload}")
     try:
+        payload = msg.payload.decode()
+        print(f"📩 MQTT modtaget [{msg.topic}] {payload}")
         data = json.loads(payload)
-    except Exception:
-        print("❌ Kunne ikke parse JSON")
+    except Exception as e:
+        print(f"❌ MQTT parse fejl: {e}")
         return
 
-    if topic == TOPIC_MSG_PILOT:
+    if msg.topic == TOPIC_MSG_PILOT:
         data["direction"] = "in"
         data["status"] = "received"
         messages.append(data)
-    elif topic == TOPIC_LIFT:
-        # Hvis piloten sender liftstatus
+    elif msg.topic == TOPIC_LIFT:
         sent_lifts.insert(0, {**data, "ts": time.time()})
 
-# ==============================
-# MQTT OPSÆTNING
-# ==============================
-mqtt_client = mqtt.Client()
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
+# Start MQTT i separat tråd
+def start_mqtt():
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(BROKER, PORT, 60)
+    client.loop_forever()
 
-print("🔌 Forbinder til MQTT broker...")
-mqtt_client.connect(BROKER, PORT, 60)
-mqtt_client.loop_start()
+mqtt_thread = threading.Thread(target=start_mqtt, daemon=True)
+mqtt_thread.start()
 
-# ==============================
-# HJÆLPEFUNKTIONS
-# ==============================
-def _normalize_lift_payload(raw: dict) -> dict:
-    """
-    Normaliserer liftdata fra manifest-UI.
-    Beholder manuelle totaler, fjerner rækker uden jumpers,
-    og udfylder overflights=1 hvis tom.
-    """
-    lift_id = int(raw.get("id") or 0)
-    name = raw.get("name") or f"Lift {lift_id}"
+# Hjælpefunktioner
+def normalize_lift(raw: dict) -> dict:
+    lid = int(raw.get("id") or 0)
+    name = raw.get("name") or f"Lift {lid}"
 
-    # Filtrér og rengør rows
-    rows_out = []
+    rows = []
     for r in raw.get("rows", []):
         try:
             alt = int(r.get("alt") or 0)
@@ -92,31 +84,23 @@ def _normalize_lift_payload(raw: dict) -> dict:
                 continue
             o = r.get("overflights")
             o = 1 if o in (None, "") else int(o)
-            rows_out.append({"alt": alt, "jumpers": j, "overflights": o})
+            rows.append({"alt": alt, "jumpers": j, "overflights": o})
         except Exception:
             continue
 
-    # Behold manuelle totaler hvis de findes
-    totals_in = raw.get("totals") or {}
-    tj = totals_in.get("jumpers")
-    tc = totals_in.get("canopies")
+    totals = raw.get("totals") or {}
+    tj = totals.get("jumpers")
+    tc = totals.get("canopies")
 
-    sum_jumpers = sum(r["jumpers"] for r in rows_out)
-    try:
-        total_jumpers = int(tj) if tj not in (None, "") else sum_jumpers
-    except Exception:
-        total_jumpers = sum_jumpers
-
-    try:
-        total_canopies = int(tc) if tc not in (None, "") else total_jumpers
-    except Exception:
-        total_canopies = total_jumpers
+    sum_jumpers = sum(r["jumpers"] for r in rows)
+    total_jumpers = int(tj) if tj not in (None, "") else sum_jumpers
+    total_canopies = int(tc) if tc not in (None, "") else total_jumpers
 
     return {
-        "id": lift_id,
+        "id": lid,
         "name": name,
-        "status": "active",  # Manifest sender altid "active"
-        "rows": rows_out,
+        "status": "active",
+        "rows": rows,
         "totals": {"jumpers": total_jumpers, "canopies": total_canopies},
     }
 
@@ -130,13 +114,11 @@ async def index():
         return f.read()
 
 @app.get("/api/state")
-async def api_state():
-    """Returner nuværende beskeder og lifts til UI'et."""
+async def state():
     return {"club": CLUB_NAME, "messages": messages, "lifts": sent_lifts}
 
 @app.post("/api/messages")
-async def api_send_message(text: str = Form(...)):
-    """Modtag besked fra UI og send til pilot."""
+async def send_message(text: str = Form(...)):
     msg = {
         "id": len(messages) + 1,
         "direction": "out",
@@ -146,26 +128,32 @@ async def api_send_message(text: str = Form(...)):
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     messages.append(msg)
-    mqtt_client.publish(TOPIC_MSG_MANIFEST, json.dumps(msg))
+    print(f"📤 Sender besked til MQTT: {msg}")
+    # Lav en midlertidig client til publishing
+    pub = mqtt.Client()
+    pub.connect(BROKER, PORT, 60)
+    pub.publish(TOPIC_MSG_MANIFEST, json.dumps(msg))
+    pub.disconnect()
     return {"ok": True}
 
 @app.post("/api/lift")
-async def api_send_lift(lift: dict = Body(...)):
-    """Modtag lift fra UI og publicér til piloten."""
-    payload = _normalize_lift_payload(lift)
-
-    payload_with_ts = {**payload, "ts": time.time()}
-    sent_lifts.insert(0, payload_with_ts)
+async def send_lift(lift: dict = Body(...)):
+    payload = normalize_lift(lift)
+    sent_lifts.insert(0, {**payload, "ts": time.time()})
     if len(sent_lifts) > 50:
         sent_lifts.pop()
 
-    mqtt_client.publish(TOPIC_LIFT, json.dumps(payload), qos=1, retain=False)
+    print(f"📤 Sender lift til MQTT: {json.dumps(payload)}")
+    pub = mqtt.Client()
+    pub.connect(BROKER, PORT, 60)
+    pub.publish(TOPIC_LIFT, json.dumps(payload), qos=1, retain=False)
+    pub.disconnect()
     return {"status": "ok", "lift": payload}
 
 # ==============================
-# KØR SOM APP
+# MAIN
 # ==============================
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starter Pilatus Manifest server på port 8000 ...")
+    print("🚀 Starter Pilatus Manifest på port 8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
