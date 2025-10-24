@@ -1,202 +1,132 @@
-import os, json, time, threading
-from fastapi import FastAPI, Form, Body
+import os
+import json
+import ssl
+import asyncio
+from datetime import datetime
+
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import paho.mqtt.client as mqtt
 
-# ======================
-# KONFIGURATION
-# ======================
+# ---------------------------------------------------
+# Konfiguration
+# ---------------------------------------------------
 BROKER = "b984550852ed4879b205fb8f7745202a.s1.eu.hivemq.cloud"
-PORT = 8884  # WebSocket + TLS
+PORT = 443  # ✅ WebSocket + TLS
 MQTT_USER = "Pilatus"
 MQTT_PASS = "N*Zhf2Siub"
 
-TOPIC_MSG_MANIFEST = "pilatus/messages/manifest"
-TOPIC_MSG_PILOT = "pilatus/messages/pilot"
-TOPIC_STATUS = "pilatus/messages/status"
-TOPIC_LIFT = "pilatus/lift"
-
-CLUB_NAME = "Pilatus Manifest"
+STATE = {
+    "club": "Pilatus Manifest",
+    "messages": [],
+    "lifts": []
+}
 
 BASE_DIR = os.path.dirname(__file__)
-STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-# ======================
-# FASTAPI
-# ======================
-app = FastAPI()
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# ---------------------------------------------------
+# MQTT-opsætning
+# ---------------------------------------------------
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("✅ Forbundet til HiveMQ via WebSocket/TLS")
+        client.subscribe("pilatus/messages/pilot")
+        client.subscribe("pilatus/lift/status")
+    else:
+        print("❌ MQTT-forbindelsesfejl:", rc)
 
-# ======================
-# DATA
-# ======================
-messages: list[dict] = []
-sent_lifts: list[dict] = []
+def on_message(client, userdata, msg):
+    payload = msg.payload.decode()
+    print(f"📥 MQTT {msg.topic}: {payload}")
+    try:
+        data = json.loads(payload)
+        if msg.topic == "pilatus/messages/pilot":
+            data["direction"] = "in"
+            STATE["messages"].append(data)
+        elif msg.topic == "pilatus/lift/status":
+            lift_id = data.get("id")
+            for lift in STATE["lifts"]:
+                if lift["id"] == lift_id:
+                    lift["status"] = data.get("status", lift["status"])
+    except Exception as e:
+        print("⚠️ Fejl ved MQTT-besked:", e)
 
-
-# ======================
-# MQTT FUNKTIONER
-# ======================
-def create_client() -> mqtt.Client:
-    """Opret en MQTT klient via WebSocket og TLS."""
+def create_client():
     client = mqtt.Client(transport="websockets")
     client.username_pw_set(MQTT_USER, MQTT_PASS)
-    client.tls_set()
+    client.tls_set(cert_reqs=ssl.CERT_NONE)
+    client.ws_set_options(path="/mqtt")  # ✅ vigtigt for HiveMQ Cloud
     client.on_connect = on_connect
     client.on_message = on_message
     return client
 
+mqtt_client = create_client()
 
-def on_connect(client, userdata, flags, rc):
-    if rc == 0:
-        print("✅ Forbundet til HiveMQ via WebSocket/TLS")
-        client.subscribe(TOPIC_MSG_PILOT)
-        client.subscribe(TOPIC_STATUS)
-        client.subscribe(TOPIC_LIFT)
-    else:
-        print(f"⚠️ MQTT-forbindelse fejlede (rc={rc})")
-
-
-def on_message(client, userdata, msg):
-    """Modtag beskeder eller statusopdateringer."""
+def start_mqtt():
     try:
-        payload = msg.payload.decode()
-        data = json.loads(payload)
-        print(f"📩 [{msg.topic}] {payload}")
+        mqtt_client.connect(BROKER, PORT, 60)
+        mqtt_client.loop_start()
+        print("🚀 Starter MQTT-loop ...")
     except Exception as e:
-        print(f"❌ MQTT parse fejl: {e}")
-        return
+        print("❌ Kunne ikke forbinde til MQTT:", e)
 
-    # Piloten sender ny besked
-    if msg.topic == TOPIC_MSG_PILOT:
-        data["direction"] = "in"
-        data["status"] = "received"
-        messages.append(data)
-        # Send automatisk kvittering "received"
-        send_status(data["id"], "received")
+# ---------------------------------------------------
+# FastAPI-app
+# ---------------------------------------------------
+app = FastAPI()
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
-    # Piloten sender status på tidligere besked
-    elif msg.topic == TOPIC_STATUS:
-        for m in messages:
-            if m.get("id") == data.get("id"):
-                m["status"] = data.get("status")
-                break
+@app.on_event("startup")
+async def startup_event():
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, start_mqtt)
+    print("🌍 FastAPI-server startet.")
 
-    # Modtag evt. lift-info (kun til visning)
-    elif msg.topic == TOPIC_LIFT:
-        sent_lifts.insert(0, {**data, "ts": time.time()})
-
-
-def mqtt_background():
-    client = create_client()
-    client.connect(BROKER, PORT, 60)
-    client.loop_forever()
-
-
-threading.Thread(target=mqtt_background, daemon=True).start()
-
-
-# ======================
-# HJÆLPEFUNKTIONER
-# ======================
-def send_status(msg_id, status):
-    """Sender beskedstatus (received/læst) tilbage til piloten."""
-    payload = {"id": msg_id, "status": status}
-    print(f"↩️  Sender statusopdatering: {payload}")
-    pub = create_client()
-    pub.connect(BROKER, PORT, 60)
-    pub.publish(TOPIC_STATUS, json.dumps(payload))
-    pub.disconnect()
-
-
-def normalize_lift(raw: dict) -> dict:
-    lid = int(raw.get("id") or 0)
-    name = raw.get("name") or f"Lift {lid}"
-
-    rows = []
-    for r in raw.get("rows", []):
-        try:
-            alt = int(r.get("alt") or 0)
-            j = int(r.get("jumpers") or 0)
-            if j <= 0:
-                continue
-            o = r.get("overflights")
-            o = 1 if o in (None, "") else int(o)
-            rows.append({"alt": alt, "jumpers": j, "overflights": o})
-        except Exception:
-            continue
-
-    totals = raw.get("totals") or {}
-    tj = totals.get("jumpers")
-    tc = totals.get("canopies")
-
-    sum_jumpers = sum(r["jumpers"] for r in rows)
-    total_jumpers = int(tj) if tj not in (None, "") else sum_jumpers
-    total_canopies = int(tc) if tc not in (None, "") else total_jumpers
-
-    return {
-        "id": lid,
-        "name": name,
-        "status": "active",
-        "rows": rows,
-        "totals": {"jumpers": total_jumpers, "canopies": total_canopies},
-    }
-
-
-# ======================
-# ROUTES
-# ======================
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    with open(os.path.join(STATIC_DIR, "index.html"), "r", encoding="utf-8") as f:
-        return f.read()
-
+    with open(os.path.join(BASE_DIR, "static/index.html"), "r", encoding="utf-8") as f:
+        return HTMLResponse(f.read())
 
 @app.get("/api/state")
-async def state():
-    return {"club": CLUB_NAME, "messages": messages, "lifts": sent_lifts}
-
+async def get_state():
+    return STATE
 
 @app.post("/api/messages")
-async def send_message(text: str = Form(...)):
+async def post_message(text: str = Form(...)):
     msg = {
-        "id": len(messages) + 1,
+        "id": len(STATE["messages"]) + 1,
         "direction": "out",
         "text": text,
         "status": "sent",
         "remote_id": None,
-        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "ts": datetime.now().isoformat(timespec='seconds')
     }
-    messages.append(msg)
-    print(f"📤 Sender besked: {msg}")
-
-    pub = create_client()
-    pub.connect(BROKER, PORT, 60)
-    pub.publish(TOPIC_MSG_MANIFEST, json.dumps(msg))
-    pub.disconnect()
+    STATE["messages"].append(msg)
+    payload = json.dumps(msg)
+    print("📤 Sender besked til MQTT:", payload)
+    try:
+        mqtt_client.publish("pilatus/messages/manifest", payload)
+    except Exception as e:
+        print("❌ Fejl ved send:", e)
     return {"ok": True}
 
-
 @app.post("/api/lift")
-async def send_lift(lift: dict = Body(...)):
-    payload = normalize_lift(lift)
-    sent_lifts.insert(0, {**payload, "ts": time.time()})
-    if len(sent_lifts) > 50:
-        sent_lifts.pop()
+async def post_lift(request: Request):
+    data = await request.json()
+    STATE["lifts"].append(data)
+    payload = json.dumps(data)
+    print("📤 Sender lift til MQTT:", payload)
+    try:
+        mqtt_client.publish("pilatus/lift", payload)
+    except Exception as e:
+        print("❌ Fejl ved send:", e)
+    return {"ok": True}
 
-    print(f"📤 Sender lift: {json.dumps(payload)}")
-    pub = create_client()
-    pub.connect(BROKER, PORT, 60)
-    pub.publish(TOPIC_LIFT, json.dumps(payload), qos=1, retain=False)
-    pub.disconnect()
-    return {"status": "ok", "lift": payload}
-
-
-# ======================
-# MAIN
-# ======================
+# ---------------------------------------------------
+# Local dev (kun ved kørsel manuelt)
+# ---------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starter Pilatus Manifest på port 8000 (Render/Cloud)")
+    print("Kører lokalt på http://localhost:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
