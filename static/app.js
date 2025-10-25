@@ -1,298 +1,130 @@
-// =============== Quick beskeder ===============
-let quickMessages = JSON.parse(localStorage.getItem("quickMessages") || '["Klar til lift","5 min forsinket","Skal tanke"]');
 let quickEditMode = false;
+const liftRows = [1000,1500,2250,4000];
 
-function saveQuick() {
-  localStorage.setItem("quickMessages", JSON.stringify(quickMessages));
-}
-
-function renderQuick() {
-  const quickDiv = document.getElementById("quick");
-  quickDiv.innerHTML = "";
-
-  quickMessages.forEach((msg, i) => {
-    const btn = document.createElement("button");
-    btn.textContent = msg;
-    btn.style.color = "black"; // sort tekst
-    btn.style.margin = "4px";
-    if (quickEditMode) {
-      btn.disabled = true;
-      const del = document.createElement("span");
-      del.textContent = " 🗑";
-      del.style.cursor = "pointer";
-      del.onclick = () => {
-        quickMessages.splice(i, 1);
-        saveQuick();
-        renderQuick();
-      };
-      btn.appendChild(del);
-    } else {
-      btn.onclick = () => sendMsg(msg);
-    }
-    quickDiv.appendChild(btn);
-  });
-
-  // Gear toggler edit-boks
-  document.getElementById("quickConfig").style.display = quickEditMode ? "flex" : "none";
-}
-
-function addQuick() {
-  const val = document.getElementById("quickText").value.trim();
-  if (!val) return;
-  quickMessages.push(val);
-  saveQuick();
-  document.getElementById("quickText").value = "";
+function toggleQuickEdit(){
+  quickEditMode = !quickEditMode;
+  document.getElementById('quickEdit').style.display = quickEditMode ? 'block' : 'none';
   renderQuick();
 }
 
-// =============== Chat / beskeder ===============
-async function loadState() {
-  const res = await fetch("/api/state");
-  return await res.json();
+async function refreshState(){
+  const res = await fetch('/api/state');
+  const data = await res.json();
+  renderMessages(data.messages);
+  renderQuick(data.quick);
+  renderLiftList(data.lifts);
 }
 
-async function refreshState() {
-  await drawChat();
-}
-
-async function drawChat() {
-  const data = await loadState();
-  const chat = document.getElementById("chat");
-  chat.innerHTML = "";
-
-  (data.messages || []).forEach((m) => {
-    const div = document.createElement("div");
-    // retning: "in" (fra pilot) eller "out" (fra manifest)
-    const cls = m.direction === "in" ? "in" : "out";
-    div.className = "msg " + cls;
-
-    // vis tekst (bevar simple bobler – backend kan senere tilføje status/tid)
+function renderMessages(msgs){
+  const chat = document.getElementById('chat');
+  chat.innerHTML = '';
+  msgs.forEach(m=>{
+    const div = document.createElement('div');
+    div.className = `bubble ${m.direction==='out'?'right':'left'}`;
     div.textContent = m.text;
     chat.appendChild(div);
   });
-
   chat.scrollTop = chat.scrollHeight;
 }
 
-async function sendMsg(text) {
-  const val = (text ?? document.getElementById("msgInput").value).trim();
-  if (!val) return;
-  await fetch("/api/messages", {
-    method: "POST",
-    body: new URLSearchParams({ text: val }),
+function renderQuick(list){
+  const c = document.getElementById('quick');
+  c.innerHTML = '';
+  list.forEach(q=>{
+    const btn = document.createElement('button');
+    btn.className = quickEditMode ? 'secondary removeable' : 'secondary';
+    btn.textContent = q;
+    if(quickEditMode){
+      btn.onclick = ()=>removeQuick(q);
+    } else {
+      btn.onclick = ()=>sendMsg(q);
+    }
+    c.appendChild(btn);
   });
-  const input = document.getElementById("msgInput");
-  if (input) input.value = "";
-  drawChat();
 }
 
-// =============== Lift-formular ===============
-const heights = [1000, 1500, 2250, 4000];
-let userEditedTotals = false;
-let userEditedCanopies = false;
-
-function getNextLiftId() {
-  const last = parseInt(localStorage.getItem("lastLiftId") || "0", 10);
-  return isNaN(last) ? 1 : last + 1;
+function renderLiftList(list){
+  const c = document.getElementById('liftList');
+  c.innerHTML = '';
+  list.sort((a,b)=>b.id-a.id).forEach(l=>{
+    const div = document.createElement('div');
+    div.textContent = `${l.name || 'Lift '+l.id} – ${l.status}`;
+    c.appendChild(div);
+  });
 }
 
-function setLastLiftId(id) {
-  localStorage.setItem("lastLiftId", String(id));
+async function sendMsg(txt){
+  const text = txt || document.getElementById('msgInput').value.trim();
+  if(!text) return;
+  const fd = new FormData();
+  fd.append('text', text);
+  await fetch('/api/messages',{method:'POST',body:fd});
+  document.getElementById('msgInput').value='';
+  refreshState();
 }
 
-function renderLiftRows() {
-  const tbody = document.getElementById("liftRows");
-  tbody.innerHTML = "";
-  heights.forEach((h) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${h}</td>
-      <td><input id="jump_${h}" type="number" min="0" style="width:90px" /></td>
-      <td><input id="over_${h}" type="number" min="0" style="width:90px" /></td>
-    `;
+async function addQuick(){
+  const text = document.getElementById('quickText').value.trim();
+  if(!text) return;
+  const fd = new FormData();
+  fd.append('text', text);
+  await fetch('/api/quick/add',{method:'POST',body:fd});
+  document.getElementById('quickText').value='';
+  refreshState();
+}
+
+async function removeQuick(text){
+  const fd = new FormData();
+  fd.append('text', text);
+  await fetch('/api/quick/remove',{method:'POST',body:fd});
+  refreshState();
+}
+
+function buildLiftRows(){
+  const tbody = document.getElementById('liftRows');
+  tbody.innerHTML='';
+  liftRows.forEach(alt=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${alt}</td>
+      <td><input type="number" min="0" id="jumpers_${alt}" value="0"></td>
+      <td><input type="number" min="0" id="over_${alt}" value="0"></td>`;
     tbody.appendChild(tr);
   });
 }
 
-function sumJumpersFromRows() {
-  return heights.reduce((sum, h) => {
-    const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
-    return sum + j;
-  }, 0);
-}
+async function sendLift(){
+  const liftId=parseInt(document.getElementById('liftId').value)||1;
+  const totalJumpers=parseInt(document.getElementById('totalJumpers').value)||0;
+  const totalCanopies=parseInt(document.getElementById('totalCanopies').value)||totalJumpers;
 
-function calcTotals() {
-  // Beregn kun visning — ingen lås
-  const autoJumpers = sumJumpersFromRows();
-
-  if (!userEditedTotals) {
-    document.getElementById("totalJumpers").value = autoJumpers;
-  }
-
-  if (!userEditedCanopies) {
-    const currentTJ = parseInt(document.getElementById("totalJumpers").value) || autoJumpers;
-    document.getElementById("totalCanopies").value = currentTJ;
-  }
-}
-
-async function sendLift() {
-  // 1️⃣ Læs rækkerne
-  const rows = [];
-  heights.forEach((h) => {
-    const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
-    if (j > 0) {
-      const o = parseInt(document.getElementById(`over_${h}`).value) || 1;
-      rows.push({ alt: h, jumpers: j, overflights: o });
+  const rows=[];
+  liftRows.forEach(a=>{
+    const j=parseInt(document.getElementById('jumpers_'+a).value)||0;
+    const o=parseInt(document.getElementById('over_'+a).value)||0;
+    if(j>0){
+      rows.push({alt:a,jumpers:j,overflights:o>0?o:1});
     }
   });
 
-  // 2️⃣ Læs felterne direkte fra UI
-  const idInput = document.getElementById("liftId");
-  const typedId = parseInt(idInput.value);
-  const id = !isNaN(typedId) && typedId > 0 ? typedId : getNextLiftId();
-
-  const tjField = document.getElementById("totalJumpers");
-  const tcField = document.getElementById("totalCanopies");
-
-  const tj = parseInt(tjField.value);
-  const tc = parseInt(tcField.value);
-
-  // 3️⃣ Brug de faktiske tal som vises i felterne
-  const totalJumpers = !isNaN(tj) ? tj : sumJumpersFromRows();
-  const totalCanopies = !isNaN(tc) ? tc : totalJumpers;
-
-  // 4️⃣ Byg og send lift
-  const lift = {
-    id,
-    name: `Lift ${id}`,
-    status: "active",
-    rows,
-    totals: { jumpers: totalJumpers, canopies: totalCanopies },
+  const lift={
+    id: liftId,
+    name:`Lift ${liftId}`,
+    status:"active",
+    rows:rows,
+    totals:{jumpers:totalJumpers||rows.reduce((s,r)=>s+r.jumpers,0),
+            canopies:totalCanopies||rows.reduce((s,r)=>s+r.jumpers,0)}
   };
 
-  await fetch("/api/lift", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(lift),
+  await fetch('/api/lift/send',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(lift)
   });
-
-  prependLiftListItem(lift);
-  setLastLiftId(id);
-  idInput.value = id + 1;
+  refreshState();
+  document.getElementById('liftId').value=liftId+1;
 }
 
-
-function prependLiftListItem(lift) {
-  const list = document.getElementById("liftList");
-  const item = document.createElement("div");
-  item.textContent = `${lift.name}: ${lift.totals.jumpers} springere / ${lift.totals.canopies} skærme`;
-  list.prepend(item);
-}
-
-function setupLift() {
-  renderLiftRows();
-
-  const idEl = document.getElementById("liftId");
-  if (!idEl.value || parseInt(idEl.value) < 1) {
-    idEl.value = getNextLiftId();
-  }
-
-  document.getElementById("liftRows").addEventListener("input", recalcTotals);
-  document.getElementById("totalJumpers").addEventListener("input", () => (userEditedTotals = true));
-  document.getElementById("totalCanopies").addEventListener("input", () => (userEditedCanopies = true));
-  document.getElementById("resetTotalsBtn").addEventListener("click", resetTotals);
-
-  recalcTotals(true);
-}
-
-
-
-async function sendLift() {
-  // byg rows (springere > 0; overflyvninger default 1 hvis tom)
-  const rows = [];
-  heights.forEach((h) => {
-    const j = parseInt(document.getElementById(`jump_${h}`).value) || 0;
-    if (j > 0) {
-      const o = parseInt(document.getElementById(`over_${h}`).value) || 1;
-      rows.push({ alt: h, jumpers: j, overflights: o });
-    }
-  });
-
-  // ID – respekter manuelt felt; ellers next
-  const idInput = document.getElementById("liftId");
-  const typedId = parseInt(idInput.value);
-  const id = !isNaN(typedId) && typedId > 0 ? typedId : getNextLiftId();
-
-  // totals – respekter manuelle hvis udfyldt; ellers auto
-  const autoJumpers = rows.reduce((a, b) => a + b.jumpers, 0);
-  const tj = parseInt(document.getElementById("totalJumpers").value);
-  const tc = parseInt(document.getElementById("totalCanopies").value);
-  const totalJumpers = !isNaN(tj) ? tj : autoJumpers;
-  const totalCanopies = !isNaN(tc) ? tc : totalJumpers;
-
-  const lift = {
-    id,
-    name: `Lift ${id}`,
-    status: "active",
-    rows,
-    totals: { jumpers: totalJumpers, canopies: totalCanopies },
-  };
-
-  // send til backend (videre til pilot via MQTT)
-  await fetch("/api/lift", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(lift),
-  });
-
-  // vis i “sendte lifts”
-  prependLiftListItem(lift);
-
-  // bump next id først efter succes
-  setLastLiftId(id);
-  idInput.value = id + 1;
-
-  // nulstil “manuelt redigeret” flag
-  userEditedTotals = false;
-  userEditedCanopies = false;
-}
-
-function prependLiftListItem(lift) {
-  const list = document.getElementById("liftList");
-  const item = document.createElement("div");
-  item.textContent = `${lift.name}: ${lift.totals.jumpers} springere / ${lift.totals.canopies} skærme`;
-  list.prepend(item);
-}
-
-function setupLift() {
-  renderLiftRows();
-
-  // init id-felt (kun første gang eller hvis tomt)
-  const idEl = document.getElementById("liftId");
-  if (!idEl.value || parseInt(idEl.value) < 1) {
-    idEl.value = getNextLiftId();
-  }
-
-  // reagér på ændringer i rækkerne => auto totals (med respekt for manuel)
-  document.getElementById("liftRows").addEventListener("input", calcTotals);
-
-  // markér totals som manuelt redigeret hvis bruger skriver i felterne
-  document.getElementById("totalJumpers").addEventListener("input", () => (userEditedTotals = true));
-  document.getElementById("totalCanopies").addEventListener("input", () => (userEditedCanopies = true));
-
-  // første beregning
-  calcTotals();
-}
-
-// =============== Init & events ===============
-document.getElementById("sendBtn").addEventListener("click", () => sendMsg());
-document.getElementById("addQuickBtn").addEventListener("click", addQuick);
-document.getElementById("gearBtn").addEventListener("click", () => {
-  quickEditMode = !quickEditMode;
-  renderQuick();
-});
-
-renderQuick();
-setupLift();
-drawChat();
-setInterval(drawChat, 3000);
+buildLiftRows();
+refreshState();
+setInterval(refreshState,5000);
