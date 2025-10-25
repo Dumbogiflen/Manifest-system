@@ -1,39 +1,91 @@
 import os
 import json
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-import mqtt_handler  # <-- vigtig: vi bruger det gamle handler-system
+import mqtt_handler
 
 # -----------------------------------------------------
-# Global data
+# Filer til lokal lagring
+# -----------------------------------------------------
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+MSG_FILE = os.path.join(DATA_DIR, "messages.json")
+LIFT_FILE = os.path.join(DATA_DIR, "lifts.json")
+QUICK_FILE = os.path.join(DATA_DIR, "quick.json")
+
+# -----------------------------------------------------
+# Globale variabler
 # -----------------------------------------------------
 messages = []
 lifts = {}
 current_lift = None
 led_state = "blue"
 msg_counter = 0
+quick_messages = ["5 min forsinket", "Klar til lift", "Skal tanke"]
 
-QUICK_FILE = "pilot_pi/quick.json"
-quick_messages = []
+# -----------------------------------------------------
+# Hjælpefunktioner til fil-lagring
+# -----------------------------------------------------
+def load_json(path, default):
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Kunne ikke indlæse {path}: {e}")
+    return default
 
+def save_json(path, data):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"⚠️ Kunne ikke gemme {path}: {e}")
 
-def load_quick_messages():
-    global quick_messages
-    if os.path.exists(QUICK_FILE):
-        with open(QUICK_FILE, "r") as f:
-            quick_messages = json.load(f)
-    else:
-        quick_messages = ["5 min forsinket", "Klar til lift", "Skal tanke"]
+# -----------------------------------------------------
+# Indlæs tidligere data
+# -----------------------------------------------------
+messages = load_json(MSG_FILE, [])
+lifts = load_json(LIFT_FILE, {})
+quick_messages = load_json(QUICK_FILE, quick_messages)
+if messages:
+    msg_counter = max(m["id"] for m in messages) if messages else 0
 
+# -----------------------------------------------------
+# MQTT setup
+# -----------------------------------------------------
+bus = mqtt_handler.MqttBus()
 
-def save_quick_messages():
-    with open(QUICK_FILE, "w") as f:
-        json.dump(quick_messages, f)
+def on_pilot_message(text: str):
+    """Modtag tekst fra piloten"""
+    global msg_counter
+    msg_counter += 1
+    new_msg = {"id": msg_counter, "direction": "in", "text": text, "status": "delivered"}
+    messages.append(new_msg)
+    save_json(MSG_FILE, messages)
+    print(f"📩 Besked fra pilot: {text}")
 
+def on_pilot_ack(payload: dict):
+    """Modtag kvittering fra piloten"""
+    print(f"📬 ACK fra pilot: {payload}")
+    for m in messages:
+        if m.get("id") == payload.get("for_id"):
+            m["status"] = payload.get("status")
+    save_json(MSG_FILE, messages)
 
-load_quick_messages()
+def on_lift_status(payload: dict):
+    """Piloten har markeret lift som færdigt"""
+    print(f"🏁 Lift-status fra pilot: {payload}")
+    lid = str(payload.get("id"))
+    if lid in lifts:
+        lifts[lid]["status"] = payload.get("status", "completed")
+        save_json(LIFT_FILE, lifts)
+
+bus.on_pilot_message = on_pilot_message
+bus.on_pilot_ack = on_pilot_ack
+bus.on_lift_status = on_lift_status
 
 # -----------------------------------------------------
 # FastAPI setup
@@ -41,26 +93,19 @@ load_quick_messages()
 app = FastAPI()
 BASE_DIR = os.path.dirname(__file__)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-
 
 # -----------------------------------------------------
-# Routes
+# API endpoints
 # -----------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "messages": messages,
-        "quick": quick_messages,
-        "lifts": list(lifts.values()),
-        "current": current_lift,
-        "led": led_state
-    })
-
+async def index():
+    """Returnér webinterfacet"""
+    with open(os.path.join(BASE_DIR, "static", "index.html"), "r", encoding="utf-8") as f:
+        return HTMLResponse(f.read())
 
 @app.get("/api/state")
-async def get_state():
+async def api_state():
+    """Returnér systemstatus"""
     return {
         "messages": messages,
         "quick": quick_messages,
@@ -69,71 +114,47 @@ async def get_state():
         "led": led_state
     }
 
-
 @app.post("/api/messages")
-async def send_message(text: str = Form(...)):
+async def api_send_message(text: str = Form(...)):
+    """Send besked til piloten"""
     global msg_counter
     msg_counter += 1
-    new_msg = {"id": msg_counter, "sender": "pilot", "text": text, "status": "sent"}
-    messages.append(new_msg)
-
-    # Send via mqtt_handler i stedet for direkte klient
-    mqtt_handler.publish_pilot_message(text)
-    print(f"📤 Sendt besked via mqtt_handler: {text}")
-
-    return {"status": "ok", "message": new_msg}
-
-
-@app.post("/api/quick/add")
-async def add_quick_message(text: str = Form(...)):
-    quick_messages.append(text)
-    save_quick_messages()
-    return {"status": "ok"}
-
-
-@app.post("/api/quick/remove")
-async def remove_quick_message(text: str = Form(...)):
-    if text in quick_messages:
-        quick_messages.remove(text)
-        save_quick_messages()
-    return {"status": "ok"}
-
-
-@app.post("/api/lift/{lift_id}/complete")
-async def complete_lift(lift_id: int):
-    if lift_id in lifts:
-        lifts[lift_id]["status"] = "completed"
-    return {"status": "ok"}
-
-
-@app.post("/api/lift/select")
-async def select_lift(lift_id: int = Form(...)):
-    global current_lift
-    if lift_id in lifts:
-        current_lift = lift_id
-    return {"status": "ok"}
-
+    msg = {"id": msg_counter, "direction": "out", "text": text, "status": "sent"}
+    messages.append(msg)
+    save_json(MSG_FILE, messages)
+    bus.publish_text_to_pilot(text)
+    print(f"📤 Sendt besked til pilot: {text}")
+    return {"status": "ok", "message": msg}
 
 @app.post("/api/lift/send")
-async def send_lift(data: str = Form(...)):
-    """Modtager JSON liftdata fra manifest og sender videre via mqtt_handler"""
-    try:
-        lift = json.loads(data)
-        lifts[lift["id"]] = lift
-        mqtt_handler.publish_lift(lift)
-        print(f"📤 Sendt lift via mqtt_handler: {lift}")
-        return {"status": "ok", "lift": lift}
-    except Exception as e:
-        print(f"⚠️ Fejl ved send_lift: {e}")
-        return {"status": "error", "detail": str(e)}
+async def api_send_lift(data: str = Form(...)):
+    """Send liftdata til piloten"""
+    lift = json.loads(data)
+    lid = str(lift["id"])
+    lifts[lid] = lift
+    save_json(LIFT_FILE, lifts)
+    bus.publish_lift(lift)
+    print(f"📤 Sendt lift til pilot: {lift}")
+    return {"status": "ok", "lift": lift}
 
+@app.post("/api/quick/add")
+async def api_add_quick(text: str = Form(...)):
+    quick_messages.append(text)
+    save_json(QUICK_FILE, quick_messages)
+    return {"status": "ok"}
+
+@app.post("/api/quick/remove")
+async def api_remove_quick(text: str = Form(...)):
+    if text in quick_messages:
+        quick_messages.remove(text)
+        save_json(QUICK_FILE, quick_messages)
+    return {"status": "ok"}
 
 # -----------------------------------------------------
 # Startup
 # -----------------------------------------------------
 @app.on_event("startup")
 async def startup_event():
-    print("🌍 Starter FastAPI og MQTT handler...")
-    mqtt_handler.start()  # <-- starter din separate MQTT tråd
-    print("✅ MQTT handler startet")
-
+    print("🌍 Starter FastAPI og MQTT-handler ...")
+    bus.start()
+    print("✅ MQTT-handler startet")
